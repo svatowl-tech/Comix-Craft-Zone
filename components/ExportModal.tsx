@@ -155,8 +155,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                 link.click();
              });
         }
+      }
 
-        onClose();
+      onClose();
     } catch (e) {
       console.error("Export failed", e);
       alert("Export failed. See console for details.");
