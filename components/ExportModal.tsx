@@ -1,8 +1,5 @@
 import React, { useState, useRef } from 'react';
 import { Download, X, FileImage, FileType, CheckCircle, Loader2 } from 'lucide-react';
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
-import JSZip from 'jszip';
 import { ComicProject } from '../types';
 import { CanvasElement } from './CanvasElement';
 
@@ -19,6 +16,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
   const [selectedPages, setSelectedPages] = useState<string[]>(project.pages.map(p => p.id));
   const [isExporting, setIsExporting] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>('single');
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const renderContainerRef = useRef<HTMLDivElement>(null);
 
   const togglePage = (id: string) => {
@@ -36,8 +34,16 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
   const handleExport = async () => {
     if (selectedPages.length === 0) return;
     setIsExporting(true);
+    setStatusMessage('Loading libraries...');
 
     try {
+      // Dynamic imports to reduce initial bundle size
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      const JSZip = (await import('jszip')).default;
+
+      setStatusMessage('Rendering pages...');
+
       const container = renderContainerRef.current;
       if (!container) throw new Error("Render container not found");
 
@@ -75,6 +81,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
         });
       }
 
+      setStatusMessage('Generating file...');
       const safeTitle = project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'comic';
 
       // 2. Handle Output Format
@@ -95,9 +102,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
         if (exportMode === 'single') {
             pdf.save(`${safeTitle}.pdf`);
         } else {
-            // "Separate" for PDF usually means separate PDF files, but here we can stick to standard PDF behavior 
-            // OR strictly separate PDF files per page.
-            // Let's implement separate files via ZIP if the user *really* wants separate PDFs
             const zip = new JSZip();
             images.forEach((img, i) => {
                 const singlePdf = new jsPDF({
@@ -136,8 +140,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
             link.download = `${safeTitle}_images.zip`;
             link.click();
         } else {
-             // Separate Downloads (triggers multiple downloads - browser might block)
-             // Better to fallback to zip or try to download one by one
+             // Separate Downloads
              images.forEach((img) => {
                 const link = document.createElement('a');
                 link.href = img.data;
@@ -145,14 +148,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                 link.click();
              });
         }
-      }
 
-      onClose();
+        onClose();
     } catch (e) {
       console.error("Export failed", e);
       alert("Export failed. See console for details.");
     } finally {
       setIsExporting(false);
+      setStatusMessage('');
     }
   };
 
@@ -290,7 +293,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                className="flex-[2] py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-brand-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
              >
                {isExporting ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
-               {isExporting ? 'Rendering...' : `Download ${selectedPages.length} Page${selectedPages.length !== 1 ? 's' : ''}`}
+               {isExporting ? (statusMessage || 'Processing...') : `Download ${selectedPages.length} Page${selectedPages.length !== 1 ? 's' : ''}`}
              </button>
         </div>
 
