@@ -95,14 +95,13 @@ export const Library: React.FC<LibraryProps> = ({
       { id: 'slanted-split', label: 'Slash', count: 2, type: 'slanted-2' },
       { id: 'slanted-action', label: 'Action Z', count: 3, type: 'slanted-3' },
       { id: 'masonry-hero', label: 'Hero Left', count: 3, type: 'masonry' },
-      { id: 'shattered', label: 'Shattered', count: 3, type: 'shattered' },
-      { id: 'circle-focus', label: 'Circle Focus', count: 3, type: 'circle-center' },
   ];
 
   const webtoonLayouts = [
-      { id: 'webtoon-short', label: 'Short (2k)', count: 3, type: 'webtoon-s' },
-      { id: 'webtoon-medium', label: 'Medium (3k)', count: 5, type: 'webtoon-m' },
-      { id: 'webtoon-cinematic', label: 'Cinematic', count: 3, type: 'webtoon-c' },
+      { id: 'webtoon-3', label: '3 Squares', count: 3, type: 'webtoon-sq' },
+      { id: 'webtoon-5', label: '5 Squares', count: 5, type: 'webtoon-sq' },
+      { id: 'webtoon-7', label: '7 Squares', count: 7, type: 'webtoon-sq' },
+      { id: 'webtoon-9', label: '9 Squares', count: 9, type: 'webtoon-sq' },
   ];
 
   // Helper to visualize polygon in library
@@ -209,9 +208,15 @@ export const Library: React.FC<LibraryProps> = ({
             {layout.type === 'slanted-2' && <><div className="absolute top-0 left-0 w-full h-[60%] bg-white/20 border border-slate-600" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 80%, 0 100%)' }}></div><div className="absolute bottom-0 left-0 w-full h-[38%] bg-white/20 border border-slate-600" style={{ clipPath: 'polygon(0 20%, 100% 0, 100% 100%, 0 100%)' }}></div></>}
             {layout.type === 'slanted-3' && <><div className="absolute top-0 left-0 w-full h-[32%] bg-white/20 border border-slate-600" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 80%, 0 100%)' }}></div><div className="absolute top-[34%] left-0 w-full h-[32%] bg-white/20 border border-slate-600" style={{ clipPath: 'polygon(0 20%, 100% 0, 100% 80%, 0 100%)' }}></div><div className="absolute bottom-0 left-0 w-full h-[32%] bg-white/20 border border-slate-600" style={{ clipPath: 'polygon(0 20%, 100% 0, 100% 100%, 0 100%)' }}></div></>}
             {layout.type === 'masonry' && <><div className="absolute left-0 top-0 w-[60%] h-full bg-white/20 border border-slate-600"></div><div className="absolute right-0 top-0 w-[38%] h-[48%] bg-white/20 border border-slate-600"></div><div className="absolute right-0 bottom-0 w-[38%] h-[48%] bg-white/20 border border-slate-600"></div></>}
-            {layout.type === 'shattered' && <><div className="absolute top-0 left-0 w-full h-[60%] bg-white/20 border border-slate-600" style={{ clipPath: 'polygon(0 0, 100% 0, 50% 100%)' }}></div><div className="absolute bottom-0 left-0 w-1/2 h-[40%] bg-white/20 border border-slate-600"></div><div className="absolute bottom-0 right-0 w-1/2 h-[40%] bg-white/20 border border-slate-600"></div></>}
-            {layout.type === 'circle-center' && <><div className="w-full h-[25%] bg-white/20 border border-slate-600"></div><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/20 border border-slate-600 z-10"></div><div className="w-full h-[25%] bg-white/20 border border-slate-600 mt-auto"></div></>}
-            {layout.type.includes('webtoon') && <div className="flex flex-col gap-1 w-full h-full p-[2px]"><div className="w-full bg-white/20 border border-slate-600 h-1/4"></div><div className="w-full bg-white/20 border border-slate-600 h-1/4"></div><div className="w-full bg-white/20 border border-slate-600 h-1/4"></div></div>}
+            
+            {layout.type === 'webtoon-sq' && (
+                <div className="flex flex-col gap-[2px] w-full h-full justify-start items-center overflow-hidden">
+                    {Array.from({length: Math.min(3, layout.count)}).map((_, i) => (
+                         <div key={i} className="w-full aspect-square border border-slate-600 bg-white/20 shrink-0"></div>
+                    ))}
+                    {layout.count > 3 && <div className="w-full h-1 bg-slate-600/50 mt-[1px]"></div>}
+                </div>
+            )}
         </div>
         <span className="text-[10px] leading-tight text-slate-300 group-hover:text-white">{layout.label}</span>
       </button>
@@ -287,7 +292,7 @@ export const Library: React.FC<LibraryProps> = ({
 
             <div>
               <p className="text-xs text-slate-400 mb-2 font-bold uppercase tracking-wider">Webtoon</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {webtoonLayouts.map(renderLayoutButton)}
               </div>
             </div>

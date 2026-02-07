@@ -183,17 +183,37 @@ export const generateTemplateLayout = ({ layoutId, currentWidth, currentHeight, 
     let targetW = currentWidth;
     let targetH = currentHeight;
 
-    if (layoutId.includes('webtoon')) {
-        targetW = 800;
-        if (layoutId === 'webtoon-short') targetH = 2000;
-        else if (layoutId === 'webtoon-medium') targetH = 3000;
-        else if (layoutId === 'webtoon-long') targetH = 4000;
-        else if (layoutId === 'webtoon-cinematic') targetH = 3000;
+    // Default Webtoon Width to standard if not wide, otherwise use current
+    if (layoutId.startsWith('webtoon')) {
+        targetW = 800; // Standardize width for webtoon templates
     }
 
     const w = targetW - margin * 2;
     const h = targetH - margin * 2;
     const m = margin; // shorthand
+
+    // Handle new Dynamic Webtoon Squares
+    if (layoutId.startsWith('webtoon-')) {
+         const parts = layoutId.split('-');
+         const count = parseInt(parts[1]);
+         if (!isNaN(count)) {
+             const wtGap = 50;
+             // Calculate frame size to be square
+             const frameSize = w; // Full width square
+             
+             // Calculate total height required
+             // Margins top/bottom + (frameSize * count) + (gaps * count-1)
+             const totalContentHeight = (m * 2) + (frameSize * count) + (wtGap * (count - 1));
+             
+             targetH = totalContentHeight;
+
+             for(let i=0; i < count; i++) {
+                 elements.push(createFrame(m, m + i * (frameSize + wtGap), frameSize, frameSize));
+             }
+             
+             return { elements, width: targetW, height: targetH };
+         }
+    }
 
     switch (layoutId) {
         case '1-full':
@@ -240,37 +260,7 @@ export const generateTemplateLayout = ({ layoutId, currentWidth, currentHeight, 
             elements.push(createFrame(m, m + h1 + h2 + gap * 2, w, h3, 'polygon', { polygonPoints: "0,15 100,0 100,100 0,100" }));
             break;
         }
-        case 'shattered':
-            elements.push(createFrame(m, m, w, h * 0.6, 'triangle'));
-            elements.push(createFrame(m, m + h * 0.6 - 40, w / 2 - gap / 2, h * 0.4 + 40, 'rectangle', {}, 0));
-            elements.push(createFrame(m + w / 2 + gap / 2, m + h * 0.6 - 40, w / 2 - gap / 2, h * 0.4 + 40, 'rectangle', {}, 0));
-            break;
-        case 'webtoon-short': {
-            const wtGap = 60;
-            const pHeight = (h - wtGap * 2) / 3;
-            elements.push(createFrame(m, m, w, pHeight));
-            elements.push(createFrame(m, m + pHeight + wtGap, w, pHeight));
-            elements.push(createFrame(m, m + (pHeight + wtGap) * 2, w, pHeight));
-            break;
-        }
-        case 'webtoon-medium': {
-            const wtGap = 80;
-            const count = 5;
-            // Equal sized frames
-            const pHeight = (h - wtGap * (count - 1)) / count;
-            for(let i=0; i<count; i++) {
-                elements.push(createFrame(m, m + i * (pHeight + wtGap), w, pHeight));
-            }
-            break;
-        }
-        case 'webtoon-cinematic': {
-            const wtGap = 150;
-            const pHeight = 800;
-            elements.push(createFrame(m, m, w, pHeight));
-            elements.push(createFrame(m, m + pHeight + wtGap, w, pHeight));
-            elements.push(createFrame(m, m + (pHeight + wtGap) * 2, w, pHeight));
-            break;
-        }
+        // Removed shattered and circle-focus layouts as requested
     }
 
     return { elements, width: targetW, height: targetH };

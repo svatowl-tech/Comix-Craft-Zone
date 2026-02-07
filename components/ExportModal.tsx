@@ -69,7 +69,14 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
           scale: 2, // Better quality
           useCORS: true,
           logging: false,
-          backgroundColor: page.background || '#ffffff'
+          allowTaint: true,
+          backgroundColor: page.background || '#ffffff',
+          imageTimeout: 15000,
+          onclone: (doc) => {
+             // Ensure all elements in the clone are visible
+             const el = doc.getElementById(`page-render-${page.id}`);
+             if (el) el.style.visibility = 'visible';
+          }
         });
 
         const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png';
@@ -300,20 +307,24 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
       </div>
 
       {/* Hidden Render Container */}
-      {/* We position it way off-screen but keep it 'visible' so html2canvas can render it. */}
+      {/* We position it fixed at 0,0 but put it behind everything with opacity 0. 
+          This ensures browsers render it fully (unlike display:none or off-screen)
+          which fixes glitchy rendering in html2canvas. */}
       <div 
         ref={renderContainerRef} 
         style={{ 
             position: 'fixed', 
             top: 0, 
-            left: -10000, 
-            pointerEvents: 'none',
-            zIndex: -1 
+            left: 0, 
+            zIndex: -50,
+            opacity: 0,
+            pointerEvents: 'none'
         }}
       >
         {project.pages.map(page => (
             <div 
-                key={page.id} 
+                key={page.id}
+                id={`page-render-${page.id}`} 
                 data-page-id={page.id}
                 className="relative bg-white comic-paper overflow-hidden"
                 style={{ 

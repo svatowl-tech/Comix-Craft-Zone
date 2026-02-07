@@ -333,61 +333,90 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
         };
 
         const clipPath = getClipPath();
+        const polygonPoints = isPolygon ? style?.polygonPoints : "50,0 100,100 0,100";
+
+        // IMPORTANT for Export: 
+        // html2canvas struggles with object-fit: cover on images inside complex clip-paths.
+        // If we don't have a crop (which uses transform/scale), we must simulate 'cover'.
+        // Since we don't know the aspect ratio here easily without loading, we rely on a 
+        // combination of min-width/min-height centered.
+        const imageStyle: React.CSSProperties = hasCrop ? {
+             transform: `translate(${style.crop!.x}px, ${style.crop!.y}px) scale(${style.crop!.scale})`,
+             transformOrigin: '0 0',
+             width: '100%',
+             height: 'auto',
+        } : {
+             // Simulate Object-Fit: Cover for Export Compatibility
+             // We make it min 100% size and center it absolutely.
+             position: 'absolute',
+             top: '50%',
+             left: '50%',
+             transform: 'translate(-50%, -50%)',
+             minWidth: '100%',
+             minHeight: '100%',
+             width: 'auto', 
+             height: 'auto',
+             maxWidth: 'none'
+        };
 
         return (
           <div 
             style={{
               width: '100%',
               height: '100%',
+              // If it's a polygon, we use SVG for background to ensure it exports correctly (transparency).
+              // If rectangle, regular background is fine.
               backgroundColor: (isTriangle || isPolygon) ? 'transparent' : (style?.backgroundColor || 'white'),
               border: (isTriangle || isPolygon) ? 'none' : `${style?.borderWidth}px solid ${style?.borderColor}`,
               borderRadius: style?.shape === 'circle' ? '50%' : '0',
-              overflow: (isTriangle || isPolygon) ? 'visible' : 'hidden',
+              overflow: (isTriangle || isPolygon) ? 'visible' : 'hidden', // Visible for SVG border overflow
               position: 'relative'
             }}
           >
              {(isTriangle || isPolygon) ? (
                 <>
+                   {/* Layer 1: Background Color SVG (Fixes HTML2Canvas Transparency issues) */}
                    <svg 
-                     width="100%" 
-                     height="100%" 
-                     viewBox="0 0 100 100" 
-                     preserveAspectRatio="none"
-                     className="absolute inset-0 pointer-events-none z-10"
-                     style={{ overflow: 'visible' }}
+                     width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"
+                     className="absolute inset-0 pointer-events-none"
+                     style={{ zIndex: 0 }}
                    >
-                       <polygon 
-                         points={isPolygon ? style?.polygonPoints : "50,0 100,100 0,100"} 
-                         fill="none" 
-                         stroke={style?.borderColor || 'black'} 
-                         strokeWidth={style?.borderWidth || 4}
-                         vectorEffect="non-scaling-stroke"
-                       />
+                       <polygon points={polygonPoints} fill={style?.backgroundColor || 'white'} stroke="none" />
                    </svg>
+
+                   {/* Layer 2: Clipped Content */}
                    <div style={{
                        width: '100%', 
                        height: '100%', 
                        clipPath: clipPath,
-                       backgroundColor: style?.backgroundColor || 'white',
-                       overflow: 'hidden',
-                       position: 'relative'
+                       overflow: 'hidden', // clips the image
+                       position: 'relative',
+                       zIndex: 1
                    }}>
                         {content && (
                             <img 
                                 src={content} 
                                 alt="frame content"
                                 draggable={false}
-                                style={{
-                                transform: style?.crop ? `translate(${style.crop.x}px, ${style.crop.y}px) scale(${style.crop.scale})` : 'none',
-                                transformOrigin: '0 0',
-                                width: '100%',
-                                height: hasCrop ? 'auto' : '100%',
-                                objectFit: hasCrop ? undefined : 'cover',
-                                pointerEvents: 'none'
-                                }}
+                                style={{ ...imageStyle, pointerEvents: 'none', objectFit: hasCrop ? undefined : 'cover' }}
                             />
                         )}
                    </div>
+
+                   {/* Layer 3: Border SVG */}
+                   <svg 
+                     width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"
+                     className="absolute inset-0 pointer-events-none"
+                     style={{ zIndex: 2, overflow: 'visible' }}
+                   >
+                       <polygon 
+                         points={polygonPoints} 
+                         fill="none" 
+                         stroke={style?.borderColor || 'black'} 
+                         strokeWidth={style?.borderWidth || 4}
+                         vectorEffect="non-scaling-stroke"
+                       />
+                   </svg>
                 </>
              ) : (
                 <div style={{
@@ -402,15 +431,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
                                 src={content} 
                                 alt="frame content"
                                 draggable={false}
-                                style={{
-                                transform: style?.crop ? `translate(${style.crop.x}px, ${style.crop.y}px) scale(${style.crop.scale})` : 'none',
-                                transformOrigin: '0 0',
-                                width: '100%',
-                                height: hasCrop ? 'auto' : '100%',
-                                objectFit: hasCrop ? undefined : 'cover',
-                                maxWidth: 'none',
-                                pointerEvents: 'none'
-                                }}
+                                style={{ ...imageStyle, pointerEvents: 'none', objectFit: hasCrop ? undefined : 'cover' }}
                             />
                         </div>
                     )}
@@ -512,6 +533,24 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
 
       case 'image':
         const hasImageCrop = !!style?.crop;
+        // Same logic as frame image for consistency
+        const basicImageStyle: React.CSSProperties = hasImageCrop ? {
+             transform: `translate(${style.crop!.x}px, ${style.crop!.y}px) scale(${style.crop!.scale})`,
+             transformOrigin: '0 0',
+             width: '100%',
+             height: 'auto',
+        } : {
+             position: 'absolute',
+             top: '50%',
+             left: '50%',
+             transform: 'translate(-50%, -50%)',
+             minWidth: '100%',
+             minHeight: '100%',
+             width: 'auto', 
+             height: 'auto',
+             maxWidth: 'none'
+        };
+
         return (
           <div 
              className="w-full h-full overflow-hidden relative" 
@@ -528,14 +567,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
               src={content} 
               alt="comic asset" 
               className="pointer-events-none"
-              style={{ 
-                 transform: style?.crop ? `translate(${style.crop.x}px, ${style.crop.y}px) scale(${style.crop.scale})` : 'none',
-                 transformOrigin: '0 0',
-                 maxWidth: 'none',
-                 width: hasImageCrop ? '100%' : '100%',
-                 height: hasImageCrop ? 'auto' : '100%',
-                 objectFit: hasImageCrop ? undefined : 'cover'
-              }}
+              style={{ ...basicImageStyle, objectFit: hasImageCrop ? undefined : 'cover' }}
             />
           </div>
         );
