@@ -454,7 +454,14 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
                     </svg>
 
                     {/* Background Layer - SVG for correct transparency handling */}
-                    <svg width="100%" height="100%" className="absolute inset-0" style={{zIndex: 0}}>
+                    <svg 
+                        width="100%" 
+                        height="100%" 
+                        viewBox="0 0 100 100" 
+                        preserveAspectRatio="none" 
+                        className="absolute inset-0" 
+                        style={{zIndex: 0}}
+                    >
                         <polygon 
                             points={polygonPoints} 
                             fill={style?.backgroundColor || 'white'} 
