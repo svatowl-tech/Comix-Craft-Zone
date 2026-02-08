@@ -1,10 +1,84 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { ComicElement } from '../types';
 
 interface CanvasElementProps {
   element: ComicElement;
   onMouseDown: (e: React.MouseEvent, id: string, type: 'move' | 'resize') => void;
 }
+
+// Sub-component to handle Sticker Text Scaling logic safely
+const StickerRenderer: React.FC<{ element: ComicElement }> = ({ element }) => {
+    const { style, content, id } = element;
+    const stickerShape = style?.shape || 'star';
+    const fillColor = style?.backgroundColor || '#0ea5e9';
+    const textColor = style?.color || '#ffffff';
+    const textRef = useRef<SVGTextElement>(null);
+    const [textScale, setTextScale] = useState(1);
+
+    useLayoutEffect(() => {
+        if (textRef.current) {
+            const bbox = textRef.current.getBBox();
+            // ViewBox is 200x150. Let's define a safe area.
+            const SAFE_WIDTH = 160; 
+            const SAFE_HEIGHT = 110;
+
+            let nextScale = 1;
+            
+            // Check width overflow
+            if (bbox.width > SAFE_WIDTH) {
+                nextScale = SAFE_WIDTH / bbox.width;
+            }
+            
+            setTextScale(nextScale);
+        }
+    }, [content, style?.fontFamily, style?.fontSize, stickerShape]);
+
+    let sPath = '';
+    if (stickerShape === 'star') {
+        sPath = "M100,10 L125,40 L160,20 L150,60 L190,75 L150,90 L160,130 L125,110 L100,140 L75,110 L40,130 L50,90 L10,75 L50,60 L40,20 L75,40 Z";
+    } else if (stickerShape === 'sharp') {
+        sPath = "M20,20 L80,10 L180,20 L160,75 L190,130 L100,110 L20,130 L40,75 Z";
+    } else if (stickerShape === 'cloud') {
+        sPath = "M50,75 Q20,75 20,45 Q20,15 50,15 Q60,5 80,15 Q100,5 120,15 Q150,15 150,45 Q150,75 120,75 Q100,85 80,75 Q60,85 50,75 Z";
+    }
+
+    // Default rotation for style
+    const rotateTransform = "rotate(-5, 100, 75)";
+    // Apply scale from center (100, 75)
+    const scaleTransform = `translate(100, 75) scale(${textScale}) translate(-100, -75)`;
+
+    return (
+        <div className="w-full h-full relative" style={{ overflow: 'visible' }}>
+            <svg width="100%" height="100%" viewBox="0 0 200 150" className="absolute inset-0 overflow-visible" preserveAspectRatio="xMidYMid meet" style={{ overflow: 'visible' }}>
+                <defs>
+                    <filter id={`shadow-${id}`}>
+                        <feDropShadow dx="3" dy="3" stdDeviation="0" floodColor="black" floodOpacity="1"/>
+                    </filter>
+                </defs>
+                {stickerShape !== 'none' && (
+                    <path d={sPath} fill={fillColor} stroke="black" strokeWidth="3" filter={`url(#shadow-${id})`} vectorEffect="non-scaling-stroke" />
+                )}
+                <text 
+                    ref={textRef}
+                    x="100" 
+                    y="75" 
+                    dominantBaseline="middle" 
+                    textAnchor="middle" 
+                    fontFamily="Impact, sans-serif" 
+                    fontWeight="900" 
+                    fontSize="40" 
+                    fill={textColor} 
+                    stroke="black" 
+                    strokeWidth="1.5" 
+                    transform={`${rotateTransform} ${scaleTransform}`}
+                    style={{ pointerEvents: 'none' }}
+                >
+                    {content}
+                </text>
+            </svg>
+        </div>
+    );
+};
 
 export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element, onMouseDown }) => {
   const { x, y, width, height, rotation, zIndex, type, style, content, selected } = element;
@@ -20,7 +94,30 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
     zIndex,
     cursor: selected ? 'move' : 'pointer',
     boxSizing: 'border-box',
-    touchAction: 'none' // Prevent scrolling on mobile
+    touchAction: 'none', // Prevent scrolling on mobile
+    overflow: 'visible' // Important: Allow tails to stick out
+  };
+
+  const getSelectionBoxStyle = (): React.CSSProperties => {
+    // Determine the expansion needed based on element type and style
+    const strokeWidth = style?.borderWidth || 0;
+    // Padding to ensure we don't clip the stroke (half stroke + 2px for the selection line gap)
+    const padding = (strokeWidth / 2) + 2; 
+
+    if (type === 'bubble' && !style?.hideTail) {
+        const tailLen = style?.tailLength ?? 50;
+        const placement = style?.tailPlacement || 'bottom';
+        
+        switch (placement) {
+            case 'top': return { top: -tailLen - padding, left: -padding, right: -padding, bottom: -padding };
+            case 'bottom': return { top: -padding, left: -padding, right: -padding, bottom: -tailLen - padding };
+            case 'left': return { top: -padding, left: -tailLen - padding, right: -padding, bottom: -padding };
+            case 'right': return { top: -padding, left: -padding, right: -tailLen - padding, bottom: -padding };
+        }
+    }
+    
+    // Default uniform padding
+    return { top: -padding, left: -padding, right: -padding, bottom: -padding };
   };
 
   const renderBubbleSVG = () => {
@@ -75,22 +172,9 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
        const cx = width / 2;
        const cy = height / 2;
 
-       if (!showTail || s === 'thought') {
+       if (!showTail) {
            // Standard Oval
            pathD = `M ${width} ${cy} A ${rx} ${ry} 0 1 1 0 ${cy} A ${rx} ${ry} 0 1 1 ${width} ${cy} Z`;
-           
-           if (s === 'thought' && showTail) {
-               // Add Thought Dots for Oval
-               const dx = tipX - baseCx;
-               const dy = tipY - baseCy;
-               extras = (
-                 <>
-                   <circle cx={baseCx + dx * 0.25} cy={baseCy + dy * 0.25} r={8} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
-                   <circle cx={baseCx + dx * 0.6} cy={baseCy + dy * 0.6} r={5} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
-                   <circle cx={tipX} cy={tipY} r={3} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
-                 </>
-               );
-           }
        } else {
            // Merged Tail Oval
            const dx = (baseCx - cx) / rx;
@@ -115,7 +199,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
     } else if (s === 'rectangle') {
        const r = 8;
        const halfTail = tailBaseWidth / 2;
-       const useTailInPath = showTail && s !== 'thought';
+       const useTailInPath = showTail;
        
        const drawSide = (x1: number, y1: number, x2: number, y2: number, sideName: string) => {
            if (useTailInPath && placement === sideName) {
@@ -158,7 +242,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
     } else if (s === 'electric' || s === 'wobbly') {
        const points: {x: number, y: number}[] = [];
        const step = s === 'electric' ? 15 : 10;
-       const useTailInPath = showTail && s !== 'thought';
+       const useTailInPath = showTail;
        
        const addJitter = (x: number, y: number) => {
           let ox = 0, oy = 0;
@@ -305,10 +389,20 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
        }
     }
 
+    // Standard SVG with visible overflow so tails can poke out
     return (
-      <svg width="100%" height="100%" className="absolute inset-0 overflow-visible" style={{ pointerEvents: 'none' }}>
-        <path d={pathD} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
-        {extras}
+      <svg 
+        width="100%"
+        height="100%"
+        className="absolute inset-0 overflow-visible" 
+        style={{ 
+            pointerEvents: 'none', 
+            overflow: 'visible',
+            zIndex: 0
+        }}
+      >
+         <path d={pathD} fill={fill} stroke={stroke} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
+         {extras}
       </svg>
     );
   };
@@ -428,7 +522,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
       
       case 'bubble':
         return (
-          <div className="w-full h-full relative">
+          <div className="w-full h-full relative" style={{ overflow: 'visible' }}>
              {renderBubbleSVG()}
              <div 
                className="absolute inset-0 flex items-center justify-center p-6"
@@ -440,7 +534,9 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
                  whiteSpace: 'pre-wrap', 
                  wordBreak: 'break-word',
                  overflowWrap: 'break-word',
-                 lineHeight: 1.2
+                 lineHeight: 1.2,
+                 position: 'absolute',
+                 zIndex: 1
                }}
              >
                 {content}
@@ -449,49 +545,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
         );
       
       case 'sticker':
-          const stickerShape = style?.shape || 'star';
-          const fillColor = style?.backgroundColor || '#0ea5e9';
-          const textColor = style?.color || '#ffffff';
-          let sPath = '';
-          
-          if (stickerShape === 'star') {
-               sPath = "M100,10 L125,40 L160,20 L150,60 L190,75 L150,90 L160,130 L125,110 L100,140 L75,110 L40,130 L50,90 L10,75 L50,60 L40,20 L75,40 Z";
-          } else if (stickerShape === 'sharp') {
-               sPath = "M20,20 L80,10 L180,20 L160,75 L190,130 L100,110 L20,130 L40,75 Z";
-          } else if (stickerShape === 'cloud') {
-               sPath = "M50,75 Q20,75 20,45 Q20,15 50,15 Q60,5 80,15 Q100,5 120,15 Q150,15 150,45 Q150,75 120,75 Q100,85 80,75 Q60,85 50,75 Z";
-          }
-
-          return (
-             <div className="w-full h-full relative">
-                 <svg width="100%" height="100%" viewBox="0 0 200 150" className="absolute inset-0 overflow-visible" preserveAspectRatio="xMidYMid meet">
-                    <defs>
-                        <filter id={`shadow-${element.id}`}>
-                            <feDropShadow dx="3" dy="3" stdDeviation="0" floodColor="black" floodOpacity="1"/>
-                        </filter>
-                    </defs>
-                    {stickerShape !== 'none' && (
-                        <path d={sPath} fill={fillColor} stroke="black" strokeWidth="3" filter={`url(#shadow-${element.id})`} vectorEffect="non-scaling-stroke" />
-                    )}
-                    <text 
-                        x="100" 
-                        y="75" 
-                        dominantBaseline="middle" 
-                        textAnchor="middle" 
-                        fontFamily="Impact, sans-serif" 
-                        fontWeight="900" 
-                        fontSize="40" 
-                        fill={textColor} 
-                        stroke="black" 
-                        strokeWidth="1.5" 
-                        transform="rotate(-5, 100, 75)"
-                        style={{ pointerEvents: 'none' }}
-                    >
-                        {content}
-                    </text>
-                 </svg>
-             </div>
-          );
+          return <StickerRenderer element={element} />;
 
       case 'text':
         return (
@@ -572,11 +626,14 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
       }}
       className="group"
     >
-      <div className="w-full h-full relative">
+      <div className="w-full h-full relative" style={{ overflow: 'visible' }}>
         {renderContent()}
         {selected && (
           <>
-            <div className="absolute inset-0 pointer-events-none border-2 border-brand-500 z-50 mix-blend-multiply opacity-50"></div>
+            <div 
+                className="absolute border-2 border-brand-500 z-50 mix-blend-multiply opacity-50 pointer-events-none"
+                style={getSelectionBoxStyle()}
+            ></div>
             <div 
               className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-500 rounded-full cursor-nwse-resize z-50 border-2 border-white shadow-sm flex items-center justify-center"
               onMouseDown={(e) => {

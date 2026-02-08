@@ -9,7 +9,7 @@ interface ExportModalProps {
 }
 
 type ExportFormat = 'jpg' | 'png' | 'pdf';
-type ExportMode = 'single' | 'separate'; // Single file (PDF/ZIP) or Separate downloads
+type ExportMode = 'single' | 'separate'; 
 
 export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) => {
   const [format, setFormat] = useState<ExportFormat>('png');
@@ -37,8 +37,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
     setStatusMessage('Loading libraries...');
 
     try {
-      // Dynamic imports to reduce initial bundle size
-      const html2canvas = (await import('html2canvas')).default;
+      const { toPng, toJpeg } = await import('html-to-image');
       const { jsPDF } = await import('jspdf');
       const JSZip = (await import('jszip')).default;
 
@@ -53,37 +52,43 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
 
       const images: { data: string, width: number, height: number, name: string }[] = [];
 
-      // 1. Render all selected pages to Canvas -> DataURL
       for (const page of pagesToExport) {
         const pageEl = container.querySelector(`[data-page-id="${page.id}"]`) as HTMLElement;
         if (!pageEl) continue;
 
-        // Wait for images to be ready (rudimentary check)
+        // Ensure images are loaded before capture
         const imgElements = pageEl.getElementsByTagName('img');
         await Promise.all(Array.from(imgElements).map(img => {
             if (img.complete) return Promise.resolve();
             return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
         }));
 
-        const canvas = await html2canvas(pageEl, {
-          scale: 2, // Better quality
-          useCORS: true,
-          logging: false,
-          allowTaint: true,
-          backgroundColor: page.background || '#ffffff',
-          imageTimeout: 15000,
-          onclone: (doc) => {
-             // Ensure all elements in the clone are visible
-             const el = doc.getElementById(`page-render-${page.id}`);
-             if (el) el.style.visibility = 'visible';
-          }
-        });
+        await document.fonts.ready;
 
-        const mimeType = format === 'jpg' ? 'image/jpeg' : 'image/png';
+        const options = { 
+            quality: 0.95, 
+            pixelRatio: 2, 
+            skipAutoScale: true,
+            filter: (node: HTMLElement) => {
+                // Filter out the tailwind script to prevent "Error inlining remote css file" if it tries to process it
+                if (node.tagName === 'SCRIPT' && (node as HTMLScriptElement).src?.includes('tailwindcss')) {
+                    return false;
+                }
+                return true;
+            }
+        };
+
+        let dataUrl = '';
+        if (format === 'jpg') {
+            dataUrl = await toJpeg(pageEl, { ...options, backgroundColor: '#ffffff' });
+        } else {
+            dataUrl = await toPng(pageEl, options);
+        }
+
         images.push({
-          data: canvas.toDataURL(mimeType, 0.9),
-          width: canvas.width,
-          height: canvas.height,
+          data: dataUrl,
+          width: page.width || 800,
+          height: page.height || 1000,
           name: `page_${page.order + 1}`
         });
       }
@@ -91,19 +96,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
       setStatusMessage('Generating file...');
       const safeTitle = project.title.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'comic';
 
-      // 2. Handle Output Format
       if (format === 'pdf') {
         const pdf = new jsPDF({
            orientation: images[0].width > images[0].height ? 'l' : 'p',
            unit: 'px',
-           format: [images[0].width, images[0].height] // Initial format based on first page
+           format: [images[0].width, images[0].height] 
         });
 
         images.forEach((img, index) => {
            if (index > 0) {
                pdf.addPage([img.width, img.height], img.width > img.height ? 'l' : 'p');
            }
-           pdf.addImage(img.data, format === 'jpg' ? 'JPEG' : 'PNG', 0, 0, img.width, img.height);
+           pdf.addImage(img.data, 'PNG', 0, 0, img.width, img.height);
         });
 
         if (exportMode === 'single') {
@@ -116,7 +120,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                     unit: 'px',
                     format: [img.width, img.height]
                 });
-                singlePdf.addImage(img.data, format === 'jpg' ? 'JPEG' : 'PNG', 0, 0, img.width, img.height);
+                singlePdf.addImage(img.data, 'PNG', 0, 0, img.width, img.height);
                 const pdfBlob = singlePdf.output('blob');
                 zip.file(`${safeTitle}_page_${i+1}.pdf`, pdfBlob);
             });
@@ -128,14 +132,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
         }
       } 
       else {
-        // Image Formats (JPG/PNG)
         if (images.length === 1 && exportMode === 'single') {
             const link = document.createElement('a');
             link.href = images[0].data;
             link.download = `${safeTitle}_page_${pagesToExport[0].order + 1}.${format}`;
             link.click();
         } else if (exportMode === 'single') {
-            // Multiple images requested as single -> ZIP Archive
             const zip = new JSZip();
             images.forEach(img => {
                 const base64Data = img.data.split(',')[1];
@@ -147,7 +149,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
             link.download = `${safeTitle}_images.zip`;
             link.click();
         } else {
-             // Separate Downloads
              images.forEach((img) => {
                 const link = document.createElement('a');
                 link.href = img.data;
@@ -183,10 +184,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
         <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
             
             <div className="grid md:grid-cols-2 gap-8">
-                {/* Left Column: Settings */}
                 <div className="space-y-6">
-                    
-                    {/* Format Selection */}
                     <div>
                         <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-3 block">File Format</label>
                         <div className="grid grid-cols-3 gap-3">
@@ -207,7 +205,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                         </div>
                     </div>
 
-                     {/* Export Mode */}
                      <div>
                         <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-3 block">Download Mode</label>
                         <div className="flex flex-col gap-2">
@@ -251,7 +248,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
 
                 </div>
 
-                {/* Right Column: Page Selection */}
                 <div>
                      <div className="flex justify-between items-center mb-3">
                         <label className="text-xs text-slate-400 uppercase tracking-wider font-bold">Select Pages</label>
@@ -307,42 +303,56 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
 
       </div>
 
-      {/* Hidden Render Container */}
-      {/* We position it fixed at 0,0 but put it behind everything with opacity 0. 
-          This ensures browsers render it fully (unlike display:none or off-screen)
-          which fixes glitchy rendering in html2canvas. */}
       <div 
         ref={renderContainerRef} 
         style={{ 
             position: 'fixed', 
             top: 0, 
-            left: '-10000px', // Move off-screen
-            zIndex: -50,
-            // We use standard opacity/visibility to ensure html2canvas captures it correctly
+            left: 0, 
+            zIndex: -9999,
         }}
       >
-        {project.pages.map(page => (
+        {project.pages.map(page => {
+            return (
             <div 
                 key={page.id}
                 id={`page-render-${page.id}`} 
                 data-page-id={page.id}
-                className="relative bg-white comic-paper overflow-hidden"
+                className="relative"
                 style={{ 
                     width: page.width || 800, 
                     height: page.height || 1000,
-                    marginBottom: 20 // Spacing just in case
+                    marginBottom: 20,
+                    overflow: 'hidden'
                 }}
             >
-                {/* Re-using Canvas rendering logic but ensuring selection is false */}
+                {/* Page Background Layer */}
+                <div 
+                    className="absolute comic-paper"
+                    style={{
+                        left: 0,
+                        top: 0,
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: page.background || '#ffffff',
+                        zIndex: 0
+                    }}
+                />
+                
+                {/* Elements */}
                 {page.elements.sort((a, b) => a.zIndex - b.zIndex).map(el => (
                     <CanvasElement 
                         key={el.id} 
-                        element={{ ...el, selected: false }} // FORCE NOT SELECTED 
-                        onMouseDown={() => {}} // No-op
+                        element={{ 
+                            ...el, 
+                            selected: false
+                        }} 
+                        onMouseDown={() => {}} 
                     />
                 ))}
             </div>
-        ))}
+            );
+        })}
       </div>
 
     </div>
