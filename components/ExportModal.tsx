@@ -316,10 +316,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
         style={{ 
             position: 'fixed', 
             top: 0, 
-            left: 0, 
+            left: '-10000px', // Move off-screen
             zIndex: -50,
-            opacity: 0,
-            pointerEvents: 'none'
+            // We use standard opacity/visibility to ensure html2canvas captures it correctly
         }}
       >
         {project.pages.map(page => (

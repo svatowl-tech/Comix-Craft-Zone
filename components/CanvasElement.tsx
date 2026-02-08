@@ -320,26 +320,14 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
         const isPolygon = style?.shape === 'polygon';
         const hasCrop = !!style?.crop;
         
-        const getClipPath = () => {
-            if (isTriangle) return 'polygon(50% 0%, 100% 100%, 0% 100%)';
-            if (isPolygon && style?.polygonPoints) {
-                const parts = style.polygonPoints.split(' ');
-                return `polygon(${parts.map(p => {
-                    const [px, py] = p.split(',');
-                    return `${px}% ${py}%`;
-                }).join(', ')})`;
-            }
-            return undefined;
-        };
-
-        const clipPath = getClipPath();
-        const polygonPoints = isPolygon ? style?.polygonPoints : "50,0 100,100 0,100";
-
-        // IMPORTANT for Export: 
-        // html2canvas struggles with object-fit: cover on images inside complex clip-paths.
-        // If we don't have a crop (which uses transform/scale), we must simulate 'cover'.
-        // Since we don't know the aspect ratio here easily without loading, we rely on a 
-        // combination of min-width/min-height centered.
+        // Use SVG clipPath for polygonal shapes to ensure export compatibility
+        // Convert "50,0 100,100" to "0.5,0 1,1" for objectBoundingBox
+        const polygonPoints = isPolygon ? style?.polygonPoints : (isTriangle ? "50,0 100,100 0,100" : "50,0 100,100 0,100");
+        const normPoints = polygonPoints ? polygonPoints.split(' ').map(p => {
+            const [x, y] = p.split(',');
+            return `${parseFloat(x)/100},${parseFloat(y)/100}`;
+        }).join(' ') : "";
+        
         const imageStyle: React.CSSProperties = hasCrop ? {
              transform: `translate(${style.crop!.x}px, ${style.crop!.y}px) scale(${style.crop!.scale})`,
              transformOrigin: '0 0',
@@ -347,7 +335,6 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
              height: 'auto',
         } : {
              // Simulate Object-Fit: Cover for Export Compatibility
-             // We make it min 100% size and center it absolutely.
              position: 'absolute',
              top: '50%',
              left: '50%',
@@ -359,41 +346,38 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
              maxWidth: 'none'
         };
 
-        return (
-          <div 
-            style={{
-              width: '100%',
-              height: '100%',
-              // If it's a polygon, we use SVG for background to ensure it exports correctly (transparency).
-              // If rectangle, regular background is fine.
-              backgroundColor: (isTriangle || isPolygon) ? 'transparent' : (style?.backgroundColor || 'white'),
-              border: (isTriangle || isPolygon) ? 'none' : `${style?.borderWidth}px solid ${style?.borderColor}`,
-              borderRadius: style?.shape === 'circle' ? '50%' : '0',
-              overflow: (isTriangle || isPolygon) ? 'visible' : 'hidden', // Visible for SVG border overflow
-              position: 'relative'
-            }}
-          >
-             {(isTriangle || isPolygon) ? (
-                <>
-                   {/* Layer 1: Background Color SVG (Fixes HTML2Canvas Transparency issues) */}
-                   <svg 
-                     width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"
-                     className="absolute inset-0 pointer-events-none"
-                     style={{ zIndex: 0 }}
-                   >
-                       <polygon points={polygonPoints} fill={style?.backgroundColor || 'white'} stroke="none" />
-                   </svg>
+        if (isTriangle || isPolygon) {
+             const clipId = `clip-${element.id}`;
+             return (
+                 <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                    {/* SVG Definition for Clipping */}
+                    <svg width="0" height="0" style={{position:'absolute', pointerEvents: 'none'}}>
+                         <defs>
+                             <clipPath id={clipId} clipPathUnits="objectBoundingBox">
+                                  <polygon points={normPoints} />
+                             </clipPath>
+                         </defs>
+                    </svg>
 
-                   {/* Layer 2: Clipped Content */}
-                   <div style={{
-                       width: '100%', 
-                       height: '100%', 
-                       clipPath: clipPath,
-                       overflow: 'hidden', // clips the image
-                       position: 'relative',
-                       zIndex: 1
-                   }}>
-                        {content && (
+                    {/* Background Layer - SVG for correct transparency handling */}
+                    <svg width="100%" height="100%" className="absolute inset-0" style={{zIndex: 0}}>
+                        <polygon 
+                            points={polygonPoints} 
+                            fill={style?.backgroundColor || 'white'} 
+                        />
+                    </svg>
+                    
+                    {/* Content Layer - Clipped via CSS referencing SVG ID */}
+                    <div style={{
+                        width: '100%',
+                        height: '100%',
+                        position: 'relative',
+                        zIndex: 1,
+                        clipPath: `url(#${clipId})`,
+                        WebkitClipPath: `url(#${clipId})`,
+                        overflow: 'hidden'
+                    }}>
+                         {content && (
                             <img 
                                 src={content} 
                                 alt="frame content"
@@ -401,43 +385,45 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
                                 style={{ ...imageStyle, pointerEvents: 'none', objectFit: hasCrop ? undefined : 'cover' }}
                             />
                         )}
-                   </div>
+                    </div>
+                    
+                    {/* Border Layer */}
+                    <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 pointer-events-none" style={{zIndex: 2, overflow: 'visible'}}>
+                        <polygon 
+                            points={polygonPoints} 
+                            fill="none" 
+                            stroke={style?.borderColor || 'black'} 
+                            strokeWidth={style?.borderWidth || 4}
+                            vectorEffect="non-scaling-stroke"
+                        />
+                    </svg>
+                 </div>
+             );
+        }
 
-                   {/* Layer 3: Border SVG */}
-                   <svg 
-                     width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"
-                     className="absolute inset-0 pointer-events-none"
-                     style={{ zIndex: 2, overflow: 'visible' }}
-                   >
-                       <polygon 
-                         points={polygonPoints} 
-                         fill="none" 
-                         stroke={style?.borderColor || 'black'} 
-                         strokeWidth={style?.borderWidth || 4}
-                         vectorEffect="non-scaling-stroke"
-                       />
-                   </svg>
-                </>
-             ) : (
-                <div style={{
-                    width: '100%',
-                    height: '100%',
-                    position: 'relative',
-                    overflow: 'hidden'
-                }}>
-                     {content && (
-                        <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative' }}>
-                            <img 
-                                src={content} 
-                                alt="frame content"
-                                draggable={false}
-                                style={{ ...imageStyle, pointerEvents: 'none', objectFit: hasCrop ? undefined : 'cover' }}
-                            />
-                        </div>
-                    )}
-                </div>
-             )}
-          </div>
+        // Standard Rectangle Frame
+        return (
+            <div style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: style?.backgroundColor || 'white',
+                border: `${style?.borderWidth}px solid ${style?.borderColor}`,
+                borderRadius: style?.shape === 'circle' ? '50%' : '0',
+                overflow: 'hidden',
+                position: 'relative',
+                boxSizing: 'border-box'
+            }}>
+                 {content && (
+                    <div style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative', borderRadius: style?.shape === 'circle' ? '50%' : '0' }}>
+                        <img 
+                            src={content} 
+                            alt="frame content"
+                            draggable={false}
+                            style={{ ...imageStyle, pointerEvents: 'none', objectFit: hasCrop ? undefined : 'cover' }}
+                        />
+                    </div>
+                )}
+            </div>
         );
       
       case 'bubble':
