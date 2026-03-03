@@ -74,10 +74,12 @@ export const Library: React.FC<LibraryProps> = ({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      onUploadImage(url);
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach(file => {
+        const url = URL.createObjectURL(file);
+        onUploadImage(url);
+      });
     }
   };
 
@@ -472,6 +474,7 @@ export const Library: React.FC<LibraryProps> = ({
                 onChange={handleFileChange} 
                 className="hidden" 
                 accept="image/*"
+                multiple
              />
              <button 
                 onClick={() => fileInputRef.current?.click()}

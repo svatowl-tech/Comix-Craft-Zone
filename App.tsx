@@ -7,6 +7,7 @@ import { CropModal } from './components/CropModal';
 import { PageSettingsModal } from './components/PageSettingsModal';
 import { ExportModal } from './components/ExportModal';
 import { StitchModal } from './components/StitchModal';
+import { DrawingEditor } from './components/DrawingEditor';
 import { Header } from './components/Header';
 import { PageNavigator } from './components/PageNavigator';
 import { ComicProject, ComicElement, DragItem, ComicPage, CropData } from './types';
@@ -40,6 +41,7 @@ export default function App() {
   const [isPageSettingsOpen, setIsPageSettingsOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isStitchModalOpen, setIsStitchModalOpen] = useState(false);
+  const [isDrawingEditorOpen, setIsDrawingEditorOpen] = useState(false);
   const [stitchModalMode, setStitchModalMode] = useState<'new' | 'add'>('new');
   const [stitchReplaceId, setStitchReplaceId] = useState<string | null>(null);
   const [isPageSelected, setIsPageSelected] = useState(false);
@@ -303,6 +305,14 @@ export default function App() {
   const handleOpenStitchHeader = () => {
       setStitchModalMode('new');
       setIsStitchModalOpen(true);
+  };
+
+  const handleSaveDrawing = (imageData: string) => {
+      addItemToCanvas({
+          type: 'image',
+          content: imageData
+      });
+      setIsDrawingEditorOpen(false);
   };
 
   const handleReplaceStitchImage = (id: string) => {
@@ -595,6 +605,7 @@ export default function App() {
         onLoadProject={handleLoadProject}
         onOpenExport={() => setIsExportModalOpen(true)}
         onOpenStitch={handleOpenStitchHeader}
+        onOpenDrawing={() => setIsDrawingEditorOpen(true)}
         canUndo={history.length > 0}
         canRedo={future.length > 0}
       />
@@ -715,6 +726,12 @@ export default function App() {
              onComplete={onStitchComplete}
           />
       )}
+
+      <DrawingEditor 
+        isOpen={isDrawingEditorOpen}
+        onClose={() => setIsDrawingEditorOpen(false)}
+        onSave={handleSaveDrawing}
+      />
     </div>
   );
 }

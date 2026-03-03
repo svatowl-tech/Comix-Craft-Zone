@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Menu, Undo, Redo, Scaling, Save, Download, Settings2, FolderOpen, Grid3X3 } from 'lucide-react';
+import { Menu, Undo, Redo, Scaling, Save, Download, Settings2, FolderOpen, Grid3X3, Pencil } from 'lucide-react';
 
 interface HeaderProps {
   onToggleLibrary: () => void;
@@ -11,6 +11,7 @@ interface HeaderProps {
   onLoadProject: (file: File) => void;
   onOpenExport: () => void;
   onOpenStitch: () => void;
+  onOpenDrawing: () => void;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -25,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   onLoadProject,
   onOpenExport,
   onOpenStitch,
+  onOpenDrawing,
   canUndo,
   canRedo
 }) => {
@@ -85,6 +87,14 @@ export const Header: React.FC<HeaderProps> = ({
           title="Create Stitch (Склейка)"
         >
           <Grid3X3 size={18} />
+        </button>
+
+        <button
+          onClick={onOpenDrawing}
+          className="p-2 hover:bg-slate-800 rounded-full text-purple-500 hover:text-purple-400"
+          title="Drawing Studio"
+        >
+          <Pencil size={18} />
         </button>
         
         {/* Load Project Button */}
