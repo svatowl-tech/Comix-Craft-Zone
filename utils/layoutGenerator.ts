@@ -266,7 +266,7 @@ export const generateTemplateLayout = ({ layoutId, currentWidth, currentHeight, 
     return { elements, width: targetW, height: targetH };
 };
 
-export const generateStitchLayout = ({ images, currentWidth, currentHeight, margin = 20 }: { images: { url: string, ratio: number }[], currentWidth: number, currentHeight: number, margin?: number }): LayoutResult => {
+export const generateStitchLayout = ({ images, currentWidth, currentHeight, margin = 20, shouldNumber = false }: { images: { url: string, ratio: number }[], currentWidth: number, currentHeight: number, margin?: number, shouldNumber?: boolean }): LayoutResult => {
     const elements: ComicElement[] = [];
     const gap = 15;
     const availW = currentWidth - (margin * 2);
@@ -299,6 +299,7 @@ export const generateStitchLayout = ({ images, currentWidth, currentHeight, marg
     const suggestedHeight = totalHeight + (margin * 2);
 
     let currentY = margin;
+    let itemIndex = 1;
 
     rows.forEach((row, rIdx) => {
         const h = rowHeights[rIdx];
@@ -311,14 +312,56 @@ export const generateStitchLayout = ({ images, currentWidth, currentHeight, marg
 
         row.forEach((img) => {
             const w = img.ratio * h;
+            const frameId = `frame-${Date.now()}-${Math.random()}`;
             elements.push({
-                ...createFrame(currentX, currentY, w, h, 'rectangle', {
+                id: frameId,
+                type: 'frame',
+                x: currentX,
+                y: currentY,
+                width: w,
+                height: h,
+                rotation: 0,
+                zIndex: 1,
+                style: { 
+                    borderWidth: 4, 
+                    borderColor: 'black', 
+                    backgroundColor: 'white', 
+                    shape: 'rectangle',
                     crop: { x: 0, y: 0, scale: 1 }
-                }),
+                },
                 content: img.url,
                 isStitch: true
             });
+
+            if (shouldNumber) {
+                // Add a small number bubble in the top-left corner of the frame
+                elements.push({
+                    id: `bubble-${Date.now()}-${Math.random()}`,
+                    type: 'bubble',
+                    x: currentX + 10,
+                    y: currentY + 10,
+                    width: 34,
+                    height: 34,
+                    rotation: 0,
+                    zIndex: 10,
+                    content: itemIndex.toString(),
+                    style: {
+                        backgroundColor: '#ffffff',
+                        borderColor: '#000000',
+                        borderWidth: 2,
+                        color: '#000000',
+                        fontFamily: 'Ruslan Display',
+                        shape: 'circle',
+                        hideTail: true,
+                        fontSize: 26,
+                        padding: 0
+                    },
+                    isStitch: true
+                });
+            }
+
             currentX += w + gap;
+            itemIndex++;
         });
         currentY += h + gap;
     });

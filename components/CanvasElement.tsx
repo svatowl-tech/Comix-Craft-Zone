@@ -528,7 +528,7 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
           <div className="w-full h-full relative" style={{ overflow: 'visible' }}>
              {renderBubbleSVG()}
              <div 
-               className="absolute inset-0 flex items-center justify-center p-6"
+               className={`absolute inset-0 flex items-center justify-center ${style?.padding === undefined ? 'p-6' : ''}`}
                style={{
                  color: style?.color,
                  fontFamily: style?.fontFamily,
@@ -539,7 +539,8 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
                  overflowWrap: 'break-word',
                  lineHeight: 1.2,
                  position: 'absolute',
-                 zIndex: 1
+                 zIndex: 1,
+                 padding: style?.padding !== undefined ? `${style.padding}px` : undefined,
                }}
              >
                 {content}

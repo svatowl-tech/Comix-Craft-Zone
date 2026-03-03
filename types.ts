@@ -46,6 +46,7 @@ export interface ComicElement {
     crop?: CropData; // For images and frames with content
     stroke?: string; // For text stroke
     polygonPoints?: string; // SVG format "x,y x,y x,y" (0-100 scale) for custom shapes
+    padding?: number; // Custom padding for text content
   };
   selected?: boolean;
   isStitch?: boolean;

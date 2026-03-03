@@ -7,7 +7,6 @@ import { CropModal } from './components/CropModal';
 import { PageSettingsModal } from './components/PageSettingsModal';
 import { ExportModal } from './components/ExportModal';
 import { StitchModal } from './components/StitchModal';
-import { DrawingEditor } from './components/DrawingEditor';
 import { Header } from './components/Header';
 import { PageNavigator } from './components/PageNavigator';
 import { ComicProject, ComicElement, DragItem, ComicPage, CropData } from './types';
@@ -41,7 +40,6 @@ export default function App() {
   const [isPageSettingsOpen, setIsPageSettingsOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isStitchModalOpen, setIsStitchModalOpen] = useState(false);
-  const [isDrawingEditorOpen, setIsDrawingEditorOpen] = useState(false);
   const [stitchModalMode, setStitchModalMode] = useState<'new' | 'add'>('new');
   const [stitchReplaceId, setStitchReplaceId] = useState<string | null>(null);
   const [isPageSelected, setIsPageSelected] = useState(false);
@@ -197,21 +195,37 @@ export default function App() {
             const stitchElements = newElements.filter(e => e.isStitch);
             const nonStitchElements = newElements.filter(e => !e.isStitch);
             
-            // We need the aspect ratios of the remaining stitch elements
-            // This is tricky because we don't store the original ratio in the element
-            // We can calculate it from width/height if we assume they were correctly sized
-            const images = stitchElements.map(e => ({
+            // Check if we had numbering enabled by looking for stitch bubbles
+            const hadNumbering = stitchElements.some(e => e.type === 'bubble');
+            
+            // We only want the frames for re-layouting
+            const stitchFrames = stitchElements.filter(e => e.type === 'frame');
+            
+            const images = stitchFrames.map(e => ({
                 url: e.content || '',
                 ratio: e.width / e.height
             }));
 
-            const { elements: reLayouted } = generateStitchLayout({ 
+            const { elements: reLayouted, height: newHeight } = generateStitchLayout({ 
                 images, 
                 currentWidth: page.width || PAGE_WIDTH, 
-                currentHeight: page.height || PAGE_HEIGHT 
+                currentHeight: page.height || PAGE_HEIGHT,
+                shouldNumber: hadNumbering
             });
             
             newElements = [...nonStitchElements, ...reLayouted];
+            
+            // Update page height if it changed
+            if (newHeight) {
+                return {
+                    ...prev,
+                    pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { 
+                        ...p, 
+                        elements: newElements,
+                        height: newHeight
+                    })
+                };
+            }
         }
 
         return {
@@ -307,14 +321,6 @@ export default function App() {
       setIsStitchModalOpen(true);
   };
 
-  const handleSaveDrawing = (imageData: string) => {
-      addItemToCanvas({
-          type: 'image',
-          content: imageData
-      });
-      setIsDrawingEditorOpen(false);
-  };
-
   const handleReplaceStitchImage = (id: string) => {
       setStitchReplaceId(id);
       const input = document.createElement('input');
@@ -336,24 +342,33 @@ export default function App() {
 
                   const stitchElements = page.elements.filter(e => e.isStitch);
                   const nonStitchElements = page.elements.filter(e => !e.isStitch);
+                  
+                  // Check if we had numbering enabled
+                  const hadNumbering = stitchElements.some(e => e.type === 'bubble');
+                  
+                  // Only frames for re-layout
+                  const stitchFrames = stitchElements.filter(e => e.type === 'frame');
 
-                  const images = stitchElements.map(e => {
+                  const images = stitchFrames.map(e => {
                       if (e.id === id) {
                           return { url, ratio };
                       }
                       return { url: e.content || '', ratio: e.width / e.height };
                   });
 
-                  const { elements: reLayouted } = generateStitchLayout({ 
+                  const { elements: reLayouted, height: newHeight } = generateStitchLayout({ 
                       images, 
                       currentWidth: page.width || PAGE_WIDTH, 
-                      currentHeight: page.height || PAGE_HEIGHT 
+                      currentHeight: page.height || PAGE_HEIGHT,
+                      shouldNumber: hadNumbering
                   });
 
                   return {
                       ...prev,
                       pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { 
-                          ...p, elements: [...nonStitchElements, ...reLayouted] 
+                          ...p, 
+                          elements: [...nonStitchElements, ...reLayouted],
+                          height: newHeight || p.height
                       })
                   };
               });
@@ -363,7 +378,7 @@ export default function App() {
       input.click();
   };
 
-  const onStitchComplete = (newImages: { url: string, ratio: number }[]) => {
+  const onStitchComplete = (newImages: { url: string, ratio: number }[], shouldNumber: boolean) => {
       saveHistory();
       
       if (stitchModalMode === 'new') {
@@ -374,7 +389,8 @@ export default function App() {
               const { elements, width, height } = generateStitchLayout({ 
                   images: newImages, 
                   currentWidth: emptyPage.width || PAGE_WIDTH, 
-                  currentHeight: emptyPage.height || PAGE_HEIGHT 
+                  currentHeight: emptyPage.height || PAGE_HEIGHT,
+                  shouldNumber
               });
               
               setProject(prev => ({
@@ -384,7 +400,12 @@ export default function App() {
               }));
           } else {
               const newPageId = `page-${Date.now()}`;
-              const { elements, width, height } = generateStitchLayout({ images: newImages, currentWidth: PAGE_WIDTH, currentHeight: PAGE_HEIGHT });
+              const { elements, width, height } = generateStitchLayout({ 
+                  images: newImages, 
+                  currentWidth: PAGE_WIDTH, 
+                  currentHeight: PAGE_HEIGHT,
+                  shouldNumber
+              });
               
               const newPage: ComicPage = {
                   id: newPageId,
@@ -419,7 +440,8 @@ export default function App() {
               const { elements: reLayouted, width, height } = generateStitchLayout({ 
                   images: allImages, 
                   currentWidth: page.width || PAGE_WIDTH, 
-                  currentHeight: page.height || PAGE_HEIGHT 
+                  currentHeight: page.height || PAGE_HEIGHT,
+                  shouldNumber
               });
 
               return {
@@ -605,7 +627,6 @@ export default function App() {
         onLoadProject={handleLoadProject}
         onOpenExport={() => setIsExportModalOpen(true)}
         onOpenStitch={handleOpenStitchHeader}
-        onOpenDrawing={() => setIsDrawingEditorOpen(true)}
         canUndo={history.length > 0}
         canRedo={future.length > 0}
       />
@@ -726,12 +747,6 @@ export default function App() {
              onComplete={onStitchComplete}
           />
       )}
-
-      <DrawingEditor 
-        isOpen={isDrawingEditorOpen}
-        onClose={() => setIsDrawingEditorOpen(false)}
-        onSave={handleSaveDrawing}
-      />
     </div>
   );
 }

@@ -3,12 +3,13 @@ import { X, Upload, Image as ImageIcon, Loader2, Plus } from 'lucide-react';
 
 interface StitchModalProps {
   onClose: () => void;
-  onComplete: (images: { url: string, ratio: number }[]) => void;
+  onComplete: (images: { url: string, ratio: number }[], shouldNumber: boolean) => void;
 }
 
 export const StitchModal: React.FC<StitchModalProps> = ({ onClose, onComplete }) => {
   const [files, setFiles] = useState<{ file: File, preview: string, ratio: number }[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [shouldNumber, setShouldNumber] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,7 +46,7 @@ export const StitchModal: React.FC<StitchModalProps> = ({ onClose, onComplete })
 
   const handleComplete = () => {
     if (files.length === 0) return;
-    onComplete(files.map(f => ({ url: f.preview, ratio: f.ratio })));
+    onComplete(files.map(f => ({ url: f.preview, ratio: f.ratio })), shouldNumber);
     onClose();
   };
 
@@ -117,17 +118,35 @@ export const StitchModal: React.FC<StitchModalProps> = ({ onClose, onComplete })
           )}
         </div>
 
-        <div className="p-5 border-t border-slate-800 bg-slate-800/30 flex gap-3">
+        <div className="p-5 border-t border-slate-800 bg-slate-800/30 flex items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <div className="relative flex items-center">
+              <input 
+                type="checkbox" 
+                checked={shouldNumber}
+                onChange={(e) => setShouldNumber(e.target.checked)}
+                className="peer sr-only"
+              />
+              <div className="w-5 h-5 border-2 border-slate-600 rounded bg-slate-800 peer-checked:bg-brand-600 peer-checked:border-brand-600 transition-all"></div>
+              <svg className="absolute w-3 h-3 text-white opacity-0 peer-checked:opacity-100 left-1 transition-opacity pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <span className="text-slate-300 text-sm font-medium group-hover:text-white transition-colors">Numbering (Пронумеровать)</span>
+          </label>
+
+          <div className="flex-1"></div>
+
           <button 
             onClick={onClose}
-            className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors"
+            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors"
           >
             Cancel
           </button>
           <button 
             onClick={handleComplete}
             disabled={files.length === 0 || isProcessing}
-            className="flex-[2] py-3 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-900/20"
+            className="px-8 py-3 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-900/20"
           >
             Generate Stitch ({files.length} images)
           </button>
