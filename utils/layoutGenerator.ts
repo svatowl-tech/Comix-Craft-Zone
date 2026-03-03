@@ -265,3 +265,64 @@ export const generateTemplateLayout = ({ layoutId, currentWidth, currentHeight, 
 
     return { elements, width: targetW, height: targetH };
 };
+
+export const generateStitchLayout = ({ images, currentWidth, currentHeight, margin = 20 }: { images: { url: string, ratio: number }[], currentWidth: number, currentHeight: number, margin?: number }): LayoutResult => {
+    const elements: ComicElement[] = [];
+    const gap = 15;
+    const availW = currentWidth - (margin * 2);
+    const availH = currentHeight - (margin * 2);
+
+    const count = images.length;
+    if (count === 0) return { elements };
+
+    // Determine number of rows
+    const rowsCount = Math.ceil(Math.sqrt(count));
+    const itemsPerRow = Math.ceil(count / rowsCount);
+    
+    const rows: { url: string, ratio: number }[][] = [];
+    for (let i = 0; i < count; i += itemsPerRow) {
+        rows.push(images.slice(i, i + itemsPerRow));
+    }
+
+    // Calculate heights for each row to fill availW
+    const rowHeights = rows.map(row => {
+        const totalRatio = row.reduce((sum, img) => sum + img.ratio, 0);
+        return (availW - (gap * (row.length - 1))) / totalRatio;
+    });
+
+    // Total height if we use these heights
+    const totalHeight = rowHeights.reduce((sum, h) => sum + h, 0) + (gap * (rows.length - 1));
+
+    // Scale heights if they exceed availH
+    let scale = 1;
+    if (totalHeight > availH) {
+        scale = availH / totalHeight;
+    }
+
+    let currentY = margin + (availH - totalHeight * scale) / 2;
+
+    rows.forEach((row, rIdx) => {
+        const h = rowHeights[rIdx] * scale;
+        const totalRowRatio = row.reduce((sum, img) => sum + img.ratio, 0);
+        const rowContentWidth = totalRowRatio * h;
+        const rowGapSpace = gap * (row.length - 1);
+        const totalRowWidth = rowContentWidth + rowGapSpace;
+        
+        let currentX = margin + (availW - totalRowWidth) / 2;
+
+        row.forEach((img) => {
+            const w = img.ratio * h;
+            elements.push({
+                ...createFrame(currentX, currentY, w, h, 'rectangle', {
+                    crop: { x: 0, y: 0, scale: 1 }
+                }),
+                content: img.url,
+                isStitch: true
+            });
+            currentX += w + gap;
+        });
+        currentY += h + gap;
+    });
+
+    return { elements };
+};

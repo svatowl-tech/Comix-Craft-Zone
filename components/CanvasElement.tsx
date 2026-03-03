@@ -428,16 +428,12 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
              width: '100%',
              height: 'auto',
         } : {
-             // Simulate Object-Fit: Cover for Export Compatibility
              position: 'absolute',
-             top: '50%',
-             left: '50%',
-             transform: 'translate(-50%, -50%)',
-             minWidth: '100%',
-             minHeight: '100%',
-             width: 'auto', 
-             height: 'auto',
-             maxWidth: 'none'
+             top: 0,
+             left: 0,
+             width: '100%',
+             height: '100%',
+             objectFit: 'cover'
         };
 
         if (isTriangle || isPolygon) {
@@ -588,14 +584,11 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
              height: 'auto',
         } : {
              position: 'absolute',
-             top: '50%',
-             left: '50%',
-             transform: 'translate(-50%, -50%)',
-             minWidth: '100%',
-             minHeight: '100%',
-             width: 'auto', 
-             height: 'auto',
-             maxWidth: 'none'
+             top: 0,
+             left: 0,
+             width: '100%',
+             height: '100%',
+             objectFit: 'cover'
         };
 
         return (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, Copy, Layers, AlignCenter, AlignLeft, AlignRight, Bold, Type, Crop, X, MessageSquare, Shuffle, Sticker } from 'lucide-react';
+import { Trash2, Copy, Layers, AlignCenter, AlignLeft, AlignRight, Bold, Type, Crop, X, MessageSquare, Shuffle, Sticker, Plus } from 'lucide-react';
 import { ComicElement } from '../types';
 
 interface PropertyPanelProps {
@@ -10,6 +10,8 @@ interface PropertyPanelProps {
   onLayerChange: (id: string, direction: 'up' | 'down') => void;
   onOpenCrop: (id: string) => void;
   onClose: () => void;
+  onAddStitchImage?: () => void;
+  onReplaceStitchImage?: (id: string) => void;
 }
 
 export const PropertyPanel: React.FC<PropertyPanelProps> = ({ 
@@ -19,7 +21,9 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
   onDuplicate,
   onLayerChange,
   onOpenCrop,
-  onClose
+  onClose,
+  onAddStitchImage,
+  onReplaceStitchImage
 }) => {
   if (!element) {
     return (
@@ -46,6 +50,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
   const hasImageContent = (element.type === 'image' || (element.type === 'frame' && element.content));
   const isBubble = element.type === 'bubble';
   const isSticker = element.type === 'sticker';
+  const isStitch = element.isStitch;
   const showTailControls = isBubble && !element.style?.hideTail;
 
   const handleRandomizeStickerShape = () => {
@@ -77,6 +82,29 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
 
       <div className="p-4 space-y-6">
         {/* Content specific actions */}
+        {isStitch && (
+            <div className="bg-brand-900/20 p-3 rounded-lg border border-brand-500/30 mb-4 space-y-3">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-brand-400 uppercase tracking-tight">Stitch Controls (Склейка)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <button 
+                        onClick={onAddStitchImage}
+                        className="bg-brand-600 hover:bg-brand-500 text-white text-[10px] font-bold py-2 rounded flex items-center justify-center gap-1 shadow-lg shadow-brand-900/20"
+                    >
+                        <Plus size={12} /> Add Image
+                    </button>
+                    <button 
+                        onClick={() => onReplaceStitchImage?.(element.id)}
+                        className="bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold py-2 rounded flex items-center justify-center gap-1 border border-slate-600"
+                    >
+                        <Shuffle size={12} /> Replace
+                    </button>
+                </div>
+                <p className="text-[10px] text-slate-400 italic">Modifying a stitch will automatically re-arrange all images on the page.</p>
+            </div>
+        )}
+
         {hasImageContent && (
            <div className="bg-slate-700/50 p-3 rounded-lg border border-slate-700 mb-4">
               <div className="flex items-center justify-between mb-2">

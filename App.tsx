@@ -6,10 +6,11 @@ import { CanvasElement } from './components/CanvasElement';
 import { CropModal } from './components/CropModal';
 import { PageSettingsModal } from './components/PageSettingsModal';
 import { ExportModal } from './components/ExportModal';
+import { StitchModal } from './components/StitchModal';
 import { Header } from './components/Header';
 import { PageNavigator } from './components/PageNavigator';
 import { ComicProject, ComicElement, DragItem, ComicPage, CropData } from './types';
-import { generateAlgorithmicLayout, generateTemplateLayout } from './utils/layoutGenerator';
+import { generateAlgorithmicLayout, generateTemplateLayout, generateStitchLayout } from './utils/layoutGenerator';
 import { saveProjectToFile, loadProjectFromFile } from './utils/storage';
 
 const PAGE_WIDTH = 800;
@@ -38,6 +39,10 @@ export default function App() {
   // Modals
   const [isPageSettingsOpen, setIsPageSettingsOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isStitchModalOpen, setIsStitchModalOpen] = useState(false);
+  const [stitchModalMode, setStitchModalMode] = useState<'new' | 'add'>('new');
+  const [stitchReplaceId, setStitchReplaceId] = useState<string | null>(null);
+  const [isPageSelected, setIsPageSelected] = useState(false);
   const [cropTargetId, setCropTargetId] = useState<string | null>(null);
 
   // Dragging State
@@ -176,12 +181,42 @@ export default function App() {
 
   const deleteElement = (id: string) => {
     saveHistory();
-    setProject(prev => ({
-        ...prev,
-        pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { 
-            ...p, elements: p.elements.filter(e => e.id !== id)
-        })
-    }));
+    const el = activePage.elements.find(e => e.id === id);
+    const isStitch = el?.isStitch;
+
+    setProject(prev => {
+        const page = prev.pages.find(p => p.id === prev.activePageId);
+        if (!page) return prev;
+
+        let newElements = page.elements.filter(e => e.id !== id);
+        
+        // If it was a stitch, re-layout the remaining stitch elements
+        if (isStitch) {
+            const stitchElements = newElements.filter(e => e.isStitch);
+            const nonStitchElements = newElements.filter(e => !e.isStitch);
+            
+            // We need the aspect ratios of the remaining stitch elements
+            // This is tricky because we don't store the original ratio in the element
+            // We can calculate it from width/height if we assume they were correctly sized
+            const images = stitchElements.map(e => ({
+                url: e.content || '',
+                ratio: e.width / e.height
+            }));
+
+            const { elements: reLayouted } = generateStitchLayout({ 
+                images, 
+                currentWidth: page.width || PAGE_WIDTH, 
+                currentHeight: page.height || PAGE_HEIGHT 
+            });
+            
+            newElements = [...nonStitchElements, ...reLayouted];
+        }
+
+        return {
+            ...prev,
+            pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { ...p, elements: newElements })
+        };
+    });
     setSelectedId(null);
   };
   
@@ -232,6 +267,161 @@ export default function App() {
      updateActivePage({ elements, width, height });
      setSelectedId(null);
      if (window.innerWidth < 1024) setIsLibraryOpen(false);
+  };
+
+  const handleCreateStitch = (images: { url: string, ratio: number }[]) => {
+      saveHistory();
+      
+      // Create a new page for the stitch
+      const newPageId = `page-${Date.now()}`;
+      const { elements } = generateStitchLayout({ images, currentWidth: PAGE_WIDTH, currentHeight: PAGE_HEIGHT });
+      
+      const newPage: ComicPage = {
+          id: newPageId,
+          order: project.pages.length,
+          background: '#ffffff',
+          elements,
+          width: PAGE_WIDTH,
+          height: PAGE_HEIGHT
+      };
+
+      setProject(prev => ({
+          ...prev,
+          pages: [...prev.pages, newPage],
+          activePageId: newPageId
+      }));
+      
+      setSelectedId(null);
+  };
+
+  const handleAddStitchImage = () => {
+      setStitchModalMode('add');
+      setIsStitchModalOpen(true);
+      setStitchReplaceId(null);
+  };
+
+  const handleOpenStitchHeader = () => {
+      setStitchModalMode('new');
+      setIsStitchModalOpen(true);
+  };
+
+  const handleReplaceStitchImage = (id: string) => {
+      setStitchReplaceId(id);
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async (e: any) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          
+          saveHistory();
+          const url = URL.createObjectURL(file);
+          const img = new Image();
+          img.onload = () => {
+              const ratio = img.naturalWidth / img.naturalHeight;
+              
+              setProject(prev => {
+                  const page = prev.pages.find(p => p.id === prev.activePageId);
+                  if (!page) return prev;
+
+                  const stitchElements = page.elements.filter(e => e.isStitch);
+                  const nonStitchElements = page.elements.filter(e => !e.isStitch);
+
+                  const images = stitchElements.map(e => {
+                      if (e.id === id) {
+                          return { url, ratio };
+                      }
+                      return { url: e.content || '', ratio: e.width / e.height };
+                  });
+
+                  const { elements: reLayouted } = generateStitchLayout({ 
+                      images, 
+                      currentWidth: page.width || PAGE_WIDTH, 
+                      currentHeight: page.height || PAGE_HEIGHT 
+                  });
+
+                  return {
+                      ...prev,
+                      pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { 
+                          ...p, elements: [...nonStitchElements, ...reLayouted] 
+                      })
+                  };
+              });
+          };
+          img.src = url;
+      };
+      input.click();
+  };
+
+  const onStitchComplete = (newImages: { url: string, ratio: number }[]) => {
+      saveHistory();
+      
+      if (stitchModalMode === 'new') {
+          // Find first empty page
+          const emptyPage = project.pages.find(p => p.elements.length === 0);
+          
+          if (emptyPage) {
+              const { elements } = generateStitchLayout({ 
+                  images: newImages, 
+                  currentWidth: emptyPage.width || PAGE_WIDTH, 
+                  currentHeight: emptyPage.height || PAGE_HEIGHT 
+              });
+              
+              setProject(prev => ({
+                  ...prev,
+                  pages: prev.pages.map(p => p.id === emptyPage.id ? { ...p, elements } : p),
+                  activePageId: emptyPage.id
+              }));
+          } else {
+              const newPageId = `page-${Date.now()}`;
+              const { elements } = generateStitchLayout({ images: newImages, currentWidth: PAGE_WIDTH, currentHeight: PAGE_HEIGHT });
+              
+              const newPage: ComicPage = {
+                  id: newPageId,
+                  order: project.pages.length,
+                  background: '#ffffff',
+                  elements,
+                  width: PAGE_WIDTH,
+                  height: PAGE_HEIGHT
+              };
+
+              setProject(prev => ({
+                  ...prev,
+                  pages: [...prev.pages, newPage],
+                  activePageId: newPageId
+              }));
+          }
+      } else {
+          setProject(prev => {
+              const page = prev.pages.find(p => p.id === prev.activePageId);
+              if (!page) return prev;
+
+              const existingStitchElements = page.elements.filter(e => e.isStitch);
+              const nonStitchElements = page.elements.filter(e => !e.isStitch);
+
+              const existingImages = existingStitchElements.map(e => ({
+                  url: e.content || '',
+                  ratio: e.width / e.height
+              }));
+
+              const allImages = [...existingImages, ...newImages];
+
+              const { elements: reLayouted } = generateStitchLayout({ 
+                  images: allImages, 
+                  currentWidth: page.width || PAGE_WIDTH, 
+                  currentHeight: page.height || PAGE_HEIGHT 
+              });
+
+              return {
+                  ...prev,
+                  pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { 
+                      ...p, elements: [...nonStitchElements, ...reLayouted] 
+                  })
+              };
+          });
+      }
+      
+      setIsStitchModalOpen(false);
   };
 
   // -- Interactions (Drag & Drop) --
@@ -302,8 +492,9 @@ export default function App() {
     addItemToCanvas(item, dropX - 50, dropY - 50);
   };
 
-  const handleCanvasMouseDown = () => {
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
     setSelectedId(null);
+    setIsPageSelected(true);
     setProject(prev => ({
         ...prev,
         pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { 
@@ -313,12 +504,23 @@ export default function App() {
     if (window.innerWidth < 1024) setIsPropertiesOpen(false);
   };
 
+  const handlePageResizeMouseDown = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      saveHistory();
+      setIsDragging(true);
+      setDragMode('page-resize');
+      dragStartRef.current = { x: e.clientX, y: e.clientY };
+      elementStartRef.current = { x: 0, y: 0, w: currentWidth, h: currentHeight };
+      dragStartProjectState.current = project;
+  };
+
   const handleElementMouseDown = useCallback((e: React.MouseEvent, id: string, type: 'move' | 'resize') => {
     e.stopPropagation(); 
     setSelectedId(id);
     setDragMode(type);
     setIsDragging(true);
     setIsPropertiesOpen(true);
+    setIsPageSelected(false);
     
     dragStartProjectState.current = project;
     
@@ -349,6 +551,13 @@ export default function App() {
       updateElement(selectedId, { x: snap(start.x + dx), y: snap(start.y + dy) });
     } else if (dragMode === 'resize') {
       updateElement(selectedId, { width: Math.max(20, snap(start.w + dx)), height: Math.max(20, snap(start.h + dy)) });
+    } else if (dragMode === 'page-resize') {
+      const newW = Math.max(200, snap(start.w + dx));
+      const newH = Math.max(200, snap(start.h + dy));
+      setProject(prev => ({
+          ...prev,
+          pages: prev.pages.map(p => p.id === prev.activePageId ? { ...p, width: newW, height: newH } : p)
+      }));
     }
   }, [isDragging, selectedId, dragMode, zoom, updateElement]);
 
@@ -385,6 +594,7 @@ export default function App() {
         onSaveProject={handleSaveProject}
         onLoadProject={handleLoadProject}
         onOpenExport={() => setIsExportModalOpen(true)}
+        onOpenStitch={handleOpenStitchHeader}
         canUndo={history.length > 0}
         canRedo={future.length > 0}
       />
@@ -426,6 +636,21 @@ export default function App() {
                     {activePage.elements.sort((a, b) => a.zIndex - b.zIndex).map(el => (
                         <CanvasElement key={el.id} element={el} onMouseDown={handleElementMouseDown} />
                     ))}
+
+                    {isPageSelected && (
+                        <>
+                            {/* Page Resize Handle */}
+                            <div 
+                                className="absolute -right-2 -bottom-2 w-8 h-8 bg-brand-500 rounded-full cursor-nwse-resize z-50 border-4 border-white shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
+                                onMouseDown={handlePageResizeMouseDown}
+                            >
+                                <div className="w-2 h-2 bg-white rounded-full" />
+                            </div>
+                            {/* Visual border for selected page */}
+                            <div className="absolute inset-0 border-4 border-brand-500/40 pointer-events-none z-40"></div>
+                        </>
+                    )}
+
                     <div className="absolute bottom-2 right-4 text-slate-400 text-xs font-comic opacity-50 pointer-events-none">
                         Page {activePage.order + 1}
                     </div>
@@ -450,6 +675,8 @@ export default function App() {
                onLayerChange={changeLayer}
                onOpenCrop={(id) => setCropTargetId(id)}
                onClose={() => setIsPropertiesOpen(false)}
+               onAddStitchImage={handleAddStitchImage}
+               onReplaceStitchImage={handleReplaceStitchImage}
             />
         </div>
       </div>
@@ -479,6 +706,13 @@ export default function App() {
           <ExportModal 
              project={project}
              onClose={() => setIsExportModalOpen(false)}
+          />
+      )}
+
+      {isStitchModalOpen && (
+          <StitchModal 
+             onClose={() => setIsStitchModalOpen(false)}
+             onComplete={onStitchComplete}
           />
       )}
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Download, X, FileImage, FileType, CheckCircle, Loader2 } from 'lucide-react';
+import { Download, X, FileImage, FileType, CheckCircle, Loader2, Layout, Grid } from 'lucide-react';
 import { ComicProject } from '../types';
 import { CanvasElement } from './CanvasElement';
 
@@ -10,12 +10,43 @@ interface ExportModalProps {
 
 type ExportFormat = 'jpg' | 'png' | 'pdf';
 type ExportMode = 'single' | 'separate'; 
+type ExportTarget = 'pages' | 'frames';
+
+const cropImage = (dataUrl: string, x: number, y: number, width: number, height: number, format: ExportFormat): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const pixelRatio = 2; // Match the pixelRatio used in html-to-image
+      canvas.width = width * pixelRatio;
+      canvas.height = height * pixelRatio;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+      if (format === 'jpg') {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      ctx.drawImage(
+        img,
+        x * pixelRatio, y * pixelRatio, width * pixelRatio, height * pixelRatio,
+        0, 0, canvas.width, canvas.height
+      );
+      resolve(canvas.toDataURL(format === 'jpg' ? 'image/jpeg' : 'image/png', 0.95));
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+};
 
 export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) => {
   const [format, setFormat] = useState<ExportFormat>('png');
   const [selectedPages, setSelectedPages] = useState<string[]>(project.pages.map(p => p.id));
   const [isExporting, setIsExporting] = useState(false);
   const [exportMode, setExportMode] = useState<ExportMode>('single');
+  const [exportTarget, setExportTarget] = useState<ExportTarget>('pages');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const renderContainerRef = useRef<HTMLDivElement>(null);
 
@@ -85,12 +116,33 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
             dataUrl = await toPng(pageEl, options);
         }
 
-        images.push({
-          data: dataUrl,
-          width: page.width || 800,
-          height: page.height || 1000,
-          name: `page_${page.order + 1}`
-        });
+        if (exportTarget === 'frames') {
+            const frames = page.elements.filter(el => el.type === 'frame').sort((a, b) => {
+                // Sort frames top-to-bottom, left-to-right
+                if (Math.abs(a.y - b.y) > 10) return a.y - b.y;
+                return a.x - b.x;
+            });
+            
+            if (frames.length === 0) continue;
+
+            for (let i = 0; i < frames.length; i++) {
+                const frame = frames[i];
+                const croppedDataUrl = await cropImage(dataUrl, frame.x, frame.y, frame.width, frame.height, format);
+                images.push({
+                    data: croppedDataUrl,
+                    width: frame.width,
+                    height: frame.height,
+                    name: `page_${page.order + 1}_frame_${i + 1}`
+                });
+            }
+        } else {
+            images.push({
+              data: dataUrl,
+              width: page.width || 800,
+              height: page.height || 1000,
+              name: `page_${page.order + 1}`
+            });
+        }
       }
 
       setStatusMessage('Generating file...');
@@ -114,7 +166,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
             pdf.save(`${safeTitle}.pdf`);
         } else {
             const zip = new JSZip();
-            images.forEach((img, i) => {
+            images.forEach((img) => {
                 const singlePdf = new jsPDF({
                     orientation: img.width > img.height ? 'l' : 'p',
                     unit: 'px',
@@ -122,12 +174,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                 });
                 singlePdf.addImage(img.data, 'PNG', 0, 0, img.width, img.height);
                 const pdfBlob = singlePdf.output('blob');
-                zip.file(`${safeTitle}_page_${i+1}.pdf`, pdfBlob);
+                zip.file(`${safeTitle}_${img.name}.pdf`, pdfBlob);
             });
             const content = await zip.generateAsync({ type: 'blob' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(content);
-            link.download = `${safeTitle}_pages.zip`;
+            link.download = `${safeTitle}_${exportTarget}.zip`;
             link.click();
         }
       } 
@@ -135,7 +187,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
         if (images.length === 1 && exportMode === 'single') {
             const link = document.createElement('a');
             link.href = images[0].data;
-            link.download = `${safeTitle}_page_${pagesToExport[0].order + 1}.${format}`;
+            link.download = `${safeTitle}_${images[0].name}.${format}`;
             link.click();
         } else if (exportMode === 'single') {
             const zip = new JSZip();
@@ -146,7 +198,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
             const content = await zip.generateAsync({ type: 'blob' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(content);
-            link.download = `${safeTitle}_images.zip`;
+            link.download = `${safeTitle}_${exportTarget}.zip`;
             link.click();
         } else {
              images.forEach((img) => {
@@ -205,6 +257,34 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                         </div>
                     </div>
 
+                    <div>
+                        <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-3 block">What to Export</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => setExportTarget('pages')}
+                                className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
+                                    exportTarget === 'pages' 
+                                    ? 'border-brand-500 bg-brand-900/20 text-white' 
+                                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                                }`}
+                            >
+                                <Layout size={24} />
+                                <span className="text-sm font-bold mt-1">Full Pages</span>
+                            </button>
+                            <button
+                                onClick={() => setExportTarget('frames')}
+                                className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
+                                    exportTarget === 'frames' 
+                                    ? 'border-brand-500 bg-brand-900/20 text-white' 
+                                    : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'
+                                }`}
+                            >
+                                <Grid size={24} />
+                                <span className="text-sm font-bold mt-1">Frames</span>
+                            </button>
+                        </div>
+                    </div>
+
                      <div>
                         <label className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-3 block">Download Mode</label>
                         <div className="flex flex-col gap-2">
@@ -221,7 +301,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                                         {format === 'pdf' ? 'Single PDF File' : 'ZIP Archive / Single File'}
                                     </div>
                                     <div className="text-xs text-slate-500">
-                                        {format === 'pdf' ? 'All pages in one document' : 'Best for multiple images'}
+                                        {format === 'pdf' ? `All ${exportTarget} in one document` : 'Best for multiple images'}
                                     </div>
                                 </div>
                             </label>
@@ -239,7 +319,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                                         Separate Files
                                     </div>
                                     <div className="text-xs text-slate-500">
-                                        Download each page individually
+                                        Download each {exportTarget === 'frames' ? 'frame' : 'page'} individually
                                     </div>
                                 </div>
                             </label>
@@ -297,7 +377,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                className="flex-[2] py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-brand-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
              >
                {isExporting ? <Loader2 className="animate-spin" size={20} /> : <Download size={20} />}
-               {isExporting ? (statusMessage || 'Processing...') : `Download ${selectedPages.length} Page${selectedPages.length !== 1 ? 's' : ''}`}
+               {isExporting ? (statusMessage || 'Processing...') : `Download ${exportTarget === 'frames' ? 'Frames' : `${selectedPages.length} Page${selectedPages.length !== 1 ? 's' : ''}`}`}
              </button>
         </div>
 

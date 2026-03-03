@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Menu, Undo, Redo, Scaling, Save, Download, Settings2, FolderOpen } from 'lucide-react';
+import { Menu, Undo, Redo, Scaling, Save, Download, Settings2, FolderOpen, Grid3X3 } from 'lucide-react';
 
 interface HeaderProps {
   onToggleLibrary: () => void;
@@ -10,6 +10,7 @@ interface HeaderProps {
   onSaveProject: () => void;
   onLoadProject: (file: File) => void;
   onOpenExport: () => void;
+  onOpenStitch: () => void;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   onSaveProject,
   onLoadProject,
   onOpenExport,
+  onOpenStitch,
   canUndo,
   canRedo
 }) => {
@@ -75,6 +77,14 @@ export const Header: React.FC<HeaderProps> = ({
           title="Canvas Size"
         >
           <Scaling size={18} />
+        </button>
+
+        <button
+          onClick={onOpenStitch}
+          className="p-2 hover:bg-slate-800 rounded-full text-brand-500 hover:text-brand-400"
+          title="Create Stitch (Склейка)"
+        >
+          <Grid3X3 size={18} />
         </button>
         
         {/* Load Project Button */}

@@ -48,6 +48,7 @@ export interface ComicElement {
     polygonPoints?: string; // SVG format "x,y x,y x,y" (0-100 scale) for custom shapes
   };
   selected?: boolean;
+  isStitch?: boolean;
 }
 
 export interface ComicPage {
