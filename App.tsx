@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { ZoomIn, ZoomOut } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import { ZoomIn, ZoomOut, X } from 'lucide-react';
 import { Library } from './components/Library';
 import { PropertyPanel } from './components/PropertyPanel';
 import { CanvasElement } from './components/CanvasElement';
@@ -9,6 +10,7 @@ import { ExportModal } from './components/ExportModal';
 import { StitchModal } from './components/StitchModal';
 import { Header } from './components/Header';
 import { PageNavigator } from './components/PageNavigator';
+import { DrawingEditor } from './components/DrawingEditor';
 import { ComicProject, ComicElement, DragItem, ComicPage, CropData } from './types';
 import { generateAlgorithmicLayout, generateTemplateLayout, generateStitchLayout } from './utils/layoutGenerator';
 import { saveProjectToFile, loadProjectFromFile } from './utils/storage';
@@ -40,12 +42,15 @@ export default function App() {
   const [isPageSettingsOpen, setIsPageSettingsOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isStitchModalOpen, setIsStitchModalOpen] = useState(false);
+  const [isDrawingEditorOpen, setIsDrawingEditorOpen] = useState(false);
+  const [drawingBackground, setDrawingBackground] = useState<string | undefined>(undefined);
   const [stitchModalMode, setStitchModalMode] = useState<'new' | 'add'>('new');
   const [stitchReplaceId, setStitchReplaceId] = useState<string | null>(null);
   const [isPageSelected, setIsPageSelected] = useState(false);
   const [cropTargetId, setCropTargetId] = useState<string | null>(null);
 
   // Dragging State
+  const paperRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragMode, setDragMode] = useState<'move' | 'resize' | null>(null);
   const dragStartRef = useRef<{ x: number, y: number } | null>(null);
@@ -536,17 +541,21 @@ export default function App() {
     if (window.innerWidth < 1024) setIsPropertiesOpen(false);
   };
 
-  const handlePageResizeMouseDown = (e: React.MouseEvent) => {
+  const handlePageResizeMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
       e.stopPropagation();
       saveHistory();
       setIsDragging(true);
       setDragMode('page-resize');
-      dragStartRef.current = { x: e.clientX, y: e.clientY };
+      
+      const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+
+      dragStartRef.current = { x: clientX, y: clientY };
       elementStartRef.current = { x: 0, y: 0, w: currentWidth, h: currentHeight };
       dragStartProjectState.current = project;
   };
 
-  const handleElementMouseDown = useCallback((e: React.MouseEvent, id: string, type: 'move' | 'resize') => {
+  const handleElementMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent, id: string, type: 'move' | 'resize') => {
     e.stopPropagation(); 
     setSelectedId(id);
     setDragMode(type);
@@ -566,16 +575,26 @@ export default function App() {
 
     const el = project.pages.find(p => p.id === project.activePageId)?.elements.find(e => e.id === id);
     if (el) {
-      dragStartRef.current = { x: e.clientX, y: e.clientY };
+      const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+      dragStartRef.current = { x: clientX, y: clientY };
       elementStartRef.current = { x: el.x, y: el.y, w: el.width, h: el.height };
     }
   }, [project]);
 
   // Global Mouse Handlers for Dragging
-  const handleGlobalMouseMove = useCallback((e: MouseEvent) => {
+  const handleGlobalMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!isDragging || !dragStartRef.current || !elementStartRef.current || !selectedId || !dragMode) return;
-    const dx = (e.clientX - dragStartRef.current.x) / zoom;
-    const dy = (e.clientY - dragStartRef.current.y) / zoom;
+    
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+    
+    const dx = (clientX - dragStartRef.current.x) / zoom;
+    const dy = (clientY - dragStartRef.current.y) / zoom;
     const start = elementStartRef.current;
     const snap = (val: number) => Math.round(val / 10) * 10;
 
@@ -608,18 +627,51 @@ export default function App() {
   useEffect(() => {
     window.addEventListener('mousemove', handleGlobalMouseMove);
     window.addEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener('touchmove', handleGlobalMouseMove as any, { passive: false });
+    window.addEventListener('touchend', handleGlobalMouseUp);
     return () => {
       window.removeEventListener('mousemove', handleGlobalMouseMove);
       window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener('touchmove', handleGlobalMouseMove as any);
+      window.removeEventListener('touchend', handleGlobalMouseUp);
     };
   }, [handleGlobalMouseMove, handleGlobalMouseUp]);
 
+  const handleOpenDrawing = async () => {
+    if (paperRef.current) {
+      try {
+        // Temporarily deselect to avoid capturing selection borders
+        setSelectedId(null);
+        setIsPageSelected(false);
+        const dataUrl = await toPng(paperRef.current, { cacheBust: true, pixelRatio: 1 });
+        setDrawingBackground(dataUrl);
+        setIsDrawingEditorOpen(true);
+      } catch (err) {
+        console.error('Failed to capture page for drawing', err);
+        setDrawingBackground(undefined);
+        setIsDrawingEditorOpen(true);
+      }
+    } else {
+      setDrawingBackground(undefined);
+      setIsDrawingEditorOpen(true);
+    }
+  };
+
+  const handleToggleLibrary = () => {
+    setIsLibraryOpen(!isLibraryOpen);
+    if (!isLibraryOpen) setIsPropertiesOpen(false);
+  };
+
+  const handleToggleProperties = () => {
+    setIsPropertiesOpen(!isPropertiesOpen);
+    if (!isPropertiesOpen) setIsLibraryOpen(false);
+  };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
+    <div className="flex flex-col h-[100dvh] w-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
       <Header 
-        onToggleLibrary={() => setIsLibraryOpen(!isLibraryOpen)}
-        onToggleProperties={() => setIsPropertiesOpen(!isPropertiesOpen)}
+        onToggleLibrary={handleToggleLibrary}
+        onToggleProperties={handleToggleProperties}
         onUndo={handleUndo}
         onRedo={handleRedo}
         onOpenPageSettings={() => setIsPageSettingsOpen(true)}
@@ -627,6 +679,7 @@ export default function App() {
         onLoadProject={handleLoadProject}
         onOpenExport={() => setIsExportModalOpen(true)}
         onOpenStitch={handleOpenStitchHeader}
+        onOpenDrawing={handleOpenDrawing}
         canUndo={history.length > 0}
         canRedo={future.length > 0}
       />
@@ -634,9 +687,9 @@ export default function App() {
       {/* Workspace */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Left Sidebar */}
-        <div className={`${isLibraryOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative inset-y-0 left-0 w-72 z-40 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none h-full`}>
+        <div className={`${isLibraryOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative inset-y-0 left-0 w-full sm:w-72 z-40 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none h-full`}>
             <div className="h-full flex flex-col relative">
-                <button onClick={() => setIsLibraryOpen(false)} className="lg:hidden absolute top-2 right-2 z-50 p-2 bg-slate-900/80 rounded-full text-white"><ZoomOut className="rotate-45" size={20}/></button>
+                <button onClick={() => setIsLibraryOpen(false)} className="lg:hidden absolute top-2 right-2 z-50 p-2 bg-slate-900/80 rounded-full text-white"><X size={20}/></button>
                 <Library 
                     onDragStart={() => {}} 
                     onItemClick={(item) => addItemToCanvas(item)}
@@ -644,6 +697,9 @@ export default function App() {
                     onGenerateLayout={handleGenerateLayout}
                     uploadedImages={uploadedImages}
                     onUploadImage={(url) => setUploadedImages(p => [url, ...p])}
+                    onOpenStitch={handleOpenStitchHeader}
+                    onOpenDrawing={handleOpenDrawing}
+                    onClose={() => setIsLibraryOpen(false)}
                 />
             </div>
         </div>
@@ -659,11 +715,13 @@ export default function App() {
 
             <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center items-start custom-scrollbar touch-pan-x touch-pan-y">
                 <div 
+                  ref={paperRef}
                   className="bg-white shadow-2xl relative comic-paper transition-transform duration-75 origin-top"
                   style={{ width: currentWidth, height: currentHeight, transform: `scale(${zoom})`, flexShrink: 0 }}
                   onDrop={handleDrop}
                   onDragOver={(e) => e.preventDefault()}
                   onMouseDown={handleCanvasMouseDown}
+                  onTouchStart={(e) => handleCanvasMouseDown(e as any)}
                 >
                     {activePage.elements.sort((a, b) => a.zIndex - b.zIndex).map(el => (
                         <CanvasElement key={el.id} element={el} onMouseDown={handleElementMouseDown} />
@@ -675,6 +733,7 @@ export default function App() {
                             <div 
                                 className="absolute -right-2 -bottom-2 w-8 h-8 bg-brand-500 rounded-full cursor-nwse-resize z-50 border-4 border-white shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
                                 onMouseDown={handlePageResizeMouseDown}
+                                onTouchStart={(e) => handlePageResizeMouseDown(e as any)}
                             >
                                 <div className="w-2 h-2 bg-white rounded-full" />
                             </div>
@@ -698,7 +757,7 @@ export default function App() {
         </main>
 
         {/* Right Sidebar */}
-        <div className={`${isPropertiesOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0 fixed lg:relative inset-y-0 right-0 w-72 z-40 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none h-full`}>
+        <div className={`${isPropertiesOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0 fixed lg:relative inset-y-0 right-0 w-full sm:w-72 z-40 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none h-full`}>
             <PropertyPanel 
                element={selectedElement}
                onUpdate={updateElementWithHistory}
@@ -747,6 +806,32 @@ export default function App() {
              onComplete={onStitchComplete}
           />
       )}
+
+      <DrawingEditor 
+         isOpen={isDrawingEditorOpen}
+         onClose={() => setIsDrawingEditorOpen(false)}
+         backgroundImage={drawingBackground}
+         canvasWidth={currentWidth}
+         canvasHeight={currentHeight}
+         onSave={(imageData) => {
+            saveHistory();
+            const newElement: ComicElement = {
+              id: `el-${Date.now()}`,
+              type: 'image',
+              x: 0, y: 0, width: currentWidth, height: currentHeight,
+              rotation: 0, zIndex: activePage.elements.length + 1,
+              content: imageData, selected: true
+            };
+            setProject(prev => ({
+                ...prev,
+                pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { 
+                    ...p, elements: [...p.elements.map(e => ({...e, selected: false})), newElement]
+                })
+            }));
+            setSelectedId(newElement.id);
+            setIsDrawingEditorOpen(false);
+         }}
+      />
     </div>
   );
 }

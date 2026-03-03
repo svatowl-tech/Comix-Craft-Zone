@@ -625,6 +625,10 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
         e.stopPropagation();
         onMouseDown(e, element.id, 'move');
       }}
+      onTouchStart={(e) => {
+        e.stopPropagation();
+        onMouseDown(e as any, element.id, 'move');
+      }}
       className="group"
     >
       <div className="w-full h-full relative" style={{ overflow: 'visible' }}>
@@ -636,10 +640,14 @@ export const CanvasElement: React.FC<CanvasElementProps> = React.memo(({ element
                 style={getSelectionBoxStyle()}
             ></div>
             <div 
-              className="absolute -bottom-1 -right-1 w-6 h-6 bg-brand-500 rounded-full cursor-nwse-resize z-50 border-2 border-white shadow-sm flex items-center justify-center"
+              className="absolute -bottom-2 -right-2 w-8 h-8 sm:w-6 sm:h-6 bg-brand-500 rounded-full cursor-nwse-resize z-50 border-2 border-white shadow-sm flex items-center justify-center"
               onMouseDown={(e) => {
                 e.stopPropagation();
                 onMouseDown(e, element.id, 'resize');
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                onMouseDown(e as any, element.id, 'resize');
               }}
             >
               <div className="w-2 h-2 bg-white rounded-full" />

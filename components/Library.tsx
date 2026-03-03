@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Layout, MessageSquare, Type, Image as ImageIcon, Sticker, Upload, Grid, Wand2, Shapes, AlignLeft } from 'lucide-react';
+import { Layout, MessageSquare, Type, Image as ImageIcon, Sticker, Upload, Grid, Wand2, Shapes, AlignLeft, Grid3X3, Pencil, X } from 'lucide-react';
 import { ElementType, DragItem } from '../types';
 
 interface LibraryProps {
@@ -9,6 +9,9 @@ interface LibraryProps {
   onGenerateLayout: (count: number) => void;
   uploadedImages: string[];
   onUploadImage: (url: string) => void;
+  onOpenStitch: () => void;
+  onOpenDrawing: () => void;
+  onClose: () => void;
 }
 
 // Helper for Sidebar Previews ONLY. Actual rendering is now in CanvasElement.
@@ -56,7 +59,10 @@ export const Library: React.FC<LibraryProps> = ({
   onApplyTemplate,
   onGenerateLayout,
   uploadedImages, 
-  onUploadImage 
+  onUploadImage,
+  onOpenStitch,
+  onOpenDrawing,
+  onClose
 }) => {
   const [activeTab, setActiveTab] = React.useState<'layouts' | 'frames' | 'bubbles' | 'assets' | 'uploads'>('bubbles');
   const [panelCount, setPanelCount] = useState<number>(4);
@@ -76,7 +82,7 @@ export const Library: React.FC<LibraryProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      Array.from(files).forEach(file => {
+      Array.from(files).forEach((file: any) => {
         const url = URL.createObjectURL(file);
         onUploadImage(url);
       });
@@ -227,10 +233,13 @@ export const Library: React.FC<LibraryProps> = ({
 
   return (
     <div className="flex flex-col h-full select-none bg-slate-800">
-      <div className="p-4 border-b border-slate-700">
+      <div className="p-4 border-b border-slate-700 flex justify-between items-center">
         <h2 className="text-lg font-bold text-white flex items-center gap-2">
           <Layout size={20} className="text-brand-500" /> Library
         </h2>
+        <button onClick={onClose} className="p-2 lg:hidden hover:bg-slate-700 rounded text-slate-300">
+           <X size={20} />
+        </button>
       </div>
 
       <div className="grid grid-cols-5 border-b border-slate-700 shrink-0 bg-slate-800">
@@ -476,14 +485,29 @@ export const Library: React.FC<LibraryProps> = ({
                 accept="image/*"
                 multiple
              />
-             <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full bg-brand-600 hover:bg-brand-500 text-white p-3 rounded flex items-center justify-center gap-2 transition-colors"
-             >
-                <Upload size={16} /> Upload Image
-             </button>
-
+             
              <div className="grid grid-cols-2 gap-2">
+               <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-brand-600 hover:bg-brand-500 text-white p-3 rounded flex flex-col items-center justify-center gap-2 transition-colors"
+               >
+                  <Upload size={20} /> <span className="text-xs">Upload</span>
+               </button>
+               <button 
+                  onClick={onOpenStitch}
+                  className="bg-slate-700 hover:bg-slate-600 text-brand-400 p-3 rounded flex flex-col items-center justify-center gap-2 transition-colors"
+               >
+                  <Grid3X3 size={20} /> <span className="text-xs text-slate-300">Create Stitch</span>
+               </button>
+               <button 
+                  onClick={onOpenDrawing}
+                  className="bg-slate-700 hover:bg-slate-600 text-purple-400 p-3 rounded flex flex-col items-center justify-center gap-2 transition-colors col-span-2"
+               >
+                  <Pencil size={20} /> <span className="text-xs text-slate-300">Drawing Studio</span>
+               </button>
+             </div>
+
+             <div className="grid grid-cols-2 gap-2 mt-4">
                 {uploadedImages.map((img, idx) => (
                   <div 
                     key={idx}

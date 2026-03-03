@@ -74,7 +74,7 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
           <button onClick={() => onDelete(element.id)} className="p-2 hover:bg-red-900/50 rounded text-red-400" title="Delete">
             <Trash2 size={16} />
           </button>
-          <button onClick={onClose} className="p-2 md:hidden hover:bg-slate-700 rounded text-slate-300">
+          <button onClick={onClose} className="p-2 lg:hidden hover:bg-slate-700 rounded text-slate-300">
              <X size={20} />
           </button>
         </div>

@@ -123,6 +123,9 @@ export const Header: React.FC<HeaderProps> = ({
         <button className="lg:hidden p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white" onClick={onToggleProperties}>
           <Settings2 size={18} />
         </button>
+        <button className="sm:hidden p-2 hover:bg-slate-800 rounded-full text-brand-500 hover:text-brand-400" onClick={onOpenExport} title="Export">
+          <Download size={18} />
+        </button>
         <button className="hidden sm:flex items-center gap-2 px-4 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 text-sm font-medium transition-colors"
           onClick={onOpenExport}
         >

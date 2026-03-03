@@ -13,7 +13,7 @@ export const StitchModal: React.FC<StitchModalProps> = ({ onClose, onComplete })
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
+    const selectedFiles = Array.from(e.target.files || []) as File[];
     if (selectedFiles.length === 0) return;
 
     setIsProcessing(true);

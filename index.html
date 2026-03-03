@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Comix Craft Zone</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0ea5e9" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Imports with Cyrillic subset support -->
     <link href="https://fonts.googleapis.com/css2?family=Ruslan+Display&family=Neucha&family=Inter:wght@400;500;600&family=Caveat:wght@400;700&family=Rubik+Mono+One&display=swap" rel="stylesheet" crossorigin="anonymous">
@@ -71,6 +74,13 @@
 </head>
   <body class="bg-slate-900 text-slate-100 overflow-hidden fixed inset-0">
     <div id="root" class="h-full w-full"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+        });
+      }
+    </script>
     <script type="module" src="./index.tsx"></script>
   <script type="module" src="/index.tsx"></script>
 </body>
