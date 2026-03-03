@@ -361,7 +361,7 @@ export default function App() {
           const emptyPage = project.pages.find(p => p.elements.length === 0);
           
           if (emptyPage) {
-              const { elements } = generateStitchLayout({ 
+              const { elements, width, height } = generateStitchLayout({ 
                   images: newImages, 
                   currentWidth: emptyPage.width || PAGE_WIDTH, 
                   currentHeight: emptyPage.height || PAGE_HEIGHT 
@@ -369,20 +369,20 @@ export default function App() {
               
               setProject(prev => ({
                   ...prev,
-                  pages: prev.pages.map(p => p.id === emptyPage.id ? { ...p, elements } : p),
+                  pages: prev.pages.map(p => p.id === emptyPage.id ? { ...p, elements, width, height } : p),
                   activePageId: emptyPage.id
               }));
           } else {
               const newPageId = `page-${Date.now()}`;
-              const { elements } = generateStitchLayout({ images: newImages, currentWidth: PAGE_WIDTH, currentHeight: PAGE_HEIGHT });
+              const { elements, width, height } = generateStitchLayout({ images: newImages, currentWidth: PAGE_WIDTH, currentHeight: PAGE_HEIGHT });
               
               const newPage: ComicPage = {
                   id: newPageId,
                   order: project.pages.length,
                   background: '#ffffff',
                   elements,
-                  width: PAGE_WIDTH,
-                  height: PAGE_HEIGHT
+                  width: width || PAGE_WIDTH,
+                  height: height || PAGE_HEIGHT
               };
 
               setProject(prev => ({
@@ -406,7 +406,7 @@ export default function App() {
 
               const allImages = [...existingImages, ...newImages];
 
-              const { elements: reLayouted } = generateStitchLayout({ 
+              const { elements: reLayouted, width, height } = generateStitchLayout({ 
                   images: allImages, 
                   currentWidth: page.width || PAGE_WIDTH, 
                   currentHeight: page.height || PAGE_HEIGHT 
@@ -415,7 +415,7 @@ export default function App() {
               return {
                   ...prev,
                   pages: prev.pages.map(p => p.id !== prev.activePageId ? p : { 
-                      ...p, elements: [...nonStitchElements, ...reLayouted] 
+                      ...p, elements: [...nonStitchElements, ...reLayouted], width, height
                   })
               };
           });

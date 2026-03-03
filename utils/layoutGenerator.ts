@@ -293,16 +293,15 @@ export const generateStitchLayout = ({ images, currentWidth, currentHeight, marg
     // Total height if we use these heights
     const totalHeight = rowHeights.reduce((sum, h) => sum + h, 0) + (gap * (rows.length - 1));
 
-    // Scale heights if they exceed availH
-    let scale = 1;
-    if (totalHeight > availH) {
-        scale = availH / totalHeight;
-    }
+    // We want equal margins on all sides.
+    // The horizontal margin is already 'margin'.
+    // We will return the suggested height that makes the vertical margin also 'margin'.
+    const suggestedHeight = totalHeight + (margin * 2);
 
-    let currentY = margin + (availH - totalHeight * scale) / 2;
+    let currentY = margin;
 
     rows.forEach((row, rIdx) => {
-        const h = rowHeights[rIdx] * scale;
+        const h = rowHeights[rIdx];
         const totalRowRatio = row.reduce((sum, img) => sum + img.ratio, 0);
         const rowContentWidth = totalRowRatio * h;
         const rowGapSpace = gap * (row.length - 1);
@@ -324,5 +323,9 @@ export const generateStitchLayout = ({ images, currentWidth, currentHeight, marg
         currentY += h + gap;
     });
 
-    return { elements };
+    return { 
+        elements,
+        width: currentWidth,
+        height: suggestedHeight
+    };
 };
