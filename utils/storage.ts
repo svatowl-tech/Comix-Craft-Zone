@@ -25,6 +25,10 @@ export const saveProjectToFile = async (project: ComicProject) => {
   // 2. Iterate through all elements to find Blob URLs (user uploads)
   // We need to convert them to Base64 so they persist in the JSON file
   for (const page of projectToSave.pages) {
+    if (page.backgroundImage && (page.backgroundImage.startsWith('blob:') || page.backgroundImage.startsWith('http'))) {
+      page.backgroundImage = await blobToBase64(page.backgroundImage);
+    }
+
     for (const el of page.elements) {
       if ((el.type === 'image' || el.type === 'frame') && el.content && typeof el.content === 'string') {
         // Convert blob and http/https URLs to base64 to make the project self-contained.

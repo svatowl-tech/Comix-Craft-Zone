@@ -415,6 +415,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ project, onClose }) =>
                         width: '100%',
                         height: '100%',
                         backgroundColor: page.background || '#ffffff',
+                        backgroundImage: page.backgroundImage ? `url(${page.backgroundImage})` : 'none',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
                         zIndex: 0
                     }}
                 />

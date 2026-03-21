@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { X, Check, Grid, Smartphone, Book, Monitor } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Check, Grid, Smartphone, Book, Monitor, Upload, Trash2 } from 'lucide-react';
 
 interface PageSettingsModalProps {
   initialWidth: number;
   initialHeight: number;
-  onSave: (width: number, height: number) => void;
+  initialBackground: string;
+  initialBackgroundImage?: string;
+  initialPadding?: number;
+  onSave: (width: number, height: number, background: string, backgroundImage?: string, padding?: number) => void;
   onClose: () => void;
 }
 
@@ -31,6 +34,9 @@ const PRESETS = [
 export const PageSettingsModal: React.FC<PageSettingsModalProps> = ({ 
   initialWidth, 
   initialHeight, 
+  initialBackground,
+  initialBackgroundImage,
+  initialPadding,
   onSave, 
   onClose 
 }) => {
@@ -38,6 +44,10 @@ export const PageSettingsModal: React.FC<PageSettingsModalProps> = ({
   // Internal state stores current value in the SELECTED unit
   const [valW, setValW] = useState(initialWidth);
   const [valH, setValH] = useState(initialHeight);
+  const [bgColor, setBgColor] = useState(initialBackground || '#ffffff');
+  const [bgImage, setBgImage] = useState(initialBackgroundImage || '');
+  const [padding, setPadding] = useState(initialPadding || 0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Convert values when unit changes
   const handleUnitChange = (newUnit: Unit) => {
@@ -62,11 +72,19 @@ export const PageSettingsModal: React.FC<PageSettingsModalProps> = ({
     setValH(parseFloat(newH.toFixed(2)));
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setBgImage(url);
+    }
+  };
+
   const handleSave = () => {
     // Convert whatever is currently set back to pixels for the app
     const finalW = Math.round(valW * UNIT_RATES[unit]);
     const finalH = Math.round(valH * UNIT_RATES[unit]);
-    onSave(finalW, finalH);
+    onSave(finalW, finalH, bgColor, bgImage || undefined, padding);
   };
 
   return (
@@ -85,37 +103,115 @@ export const PageSettingsModal: React.FC<PageSettingsModalProps> = ({
         <div className="p-6 space-y-6">
             
             {/* Dimensions Input */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                    <label className="text-xs text-slate-400 mb-1 block">Width</label>
-                    <input 
-                        type="number" 
-                        value={valW}
-                        onChange={(e) => setValW(parseFloat(e.target.value))}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white focus:border-brand-500 outline-none"
-                    />
+            <div>
+                <label className="text-xs text-slate-400 mb-2 block uppercase tracking-wider font-semibold">Dimensions</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                        <label className="text-xs text-slate-400 mb-1 block">Width</label>
+                        <input 
+                            type="number" 
+                            value={valW}
+                            onChange={(e) => setValW(parseFloat(e.target.value))}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white focus:border-brand-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-400 mb-1 block">Height</label>
+                        <input 
+                            type="number" 
+                            value={valH}
+                            onChange={(e) => setValH(parseFloat(e.target.value))}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white focus:border-brand-500 outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-400 mb-1 block">Unit</label>
+                        <select 
+                            value={unit}
+                            onChange={(e) => handleUnitChange(e.target.value as Unit)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white focus:border-brand-500 outline-none"
+                        >
+                            <option value="px">Pixels</option>
+                            <option value="cm">Centimeters</option>
+                            <option value="mm">Millimeters</option>
+                            <option value="in">Inches</option>
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label className="text-xs text-slate-400 mb-1 block">Height</label>
-                    <input 
-                        type="number" 
-                        value={valH}
-                        onChange={(e) => setValH(parseFloat(e.target.value))}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white focus:border-brand-500 outline-none"
-                    />
+            </div>
+
+            {/* Appearance Input */}
+            <div>
+                <label className="text-xs text-slate-400 mb-2 block uppercase tracking-wider font-semibold">Appearance</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-xs text-slate-400 mb-1 block">Background Color</label>
+                        <div className="flex gap-2">
+                            <input 
+                                type="color" 
+                                value={bgColor}
+                                onChange={(e) => setBgColor(e.target.value)}
+                                className="w-10 h-10 rounded cursor-pointer bg-slate-950 border border-slate-700 p-1"
+                            />
+                            <input 
+                                type="text" 
+                                value={bgColor}
+                                onChange={(e) => setBgColor(e.target.value)}
+                                className="flex-1 bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white focus:border-brand-500 outline-none uppercase"
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-400 mb-1 block">Padding (px)</label>
+                        <input 
+                            type="number" 
+                            value={padding}
+                            onChange={(e) => setPadding(parseInt(e.target.value) || 0)}
+                            className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white focus:border-brand-500 outline-none"
+                            min="0"
+                        />
+                    </div>
                 </div>
-                <div>
-                    <label className="text-xs text-slate-400 mb-1 block">Unit</label>
-                    <select 
-                        value={unit}
-                        onChange={(e) => handleUnitChange(e.target.value as Unit)}
-                        className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-2 text-white focus:border-brand-500 outline-none"
-                    >
-                        <option value="px">Pixels</option>
-                        <option value="cm">Centimeters</option>
-                        <option value="mm">Millimeters</option>
-                        <option value="in">Inches</option>
-                    </select>
+            </div>
+
+            {/* Texture Input */}
+            <div>
+                <label className="text-xs text-slate-400 mb-2 block uppercase tracking-wider font-semibold">Texture / Background Image</label>
+                <div className="flex items-center gap-4">
+                    {bgImage ? (
+                        <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-700">
+                            <img src={bgImage} alt="Texture" className="w-full h-full object-cover" />
+                            <button 
+                                onClick={() => setBgImage('')}
+                                className="absolute top-1 right-1 p-1 bg-red-500/80 hover:bg-red-500 text-white rounded-full transition-colors"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="w-24 h-24 rounded-lg border-2 border-dashed border-slate-700 flex items-center justify-center bg-slate-800/50">
+                            <span className="text-xs text-slate-500">None</span>
+                        </div>
+                    )}
+                    <div className="flex-1">
+                        <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            ref={fileInputRef}
+                            onChange={handleImageUpload}
+                        />
+                        <button 
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm transition-colors border border-slate-700"
+                        >
+                            <Upload size={16} />
+                            Upload Texture
+                        </button>
+                        <p className="text-xs text-slate-500 mt-2">
+                            Upload an image to use as the page background. It will cover the entire canvas.
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -158,7 +254,7 @@ export const PageSettingsModal: React.FC<PageSettingsModalProps> = ({
                onClick={handleSave}
                className="flex-1 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors shadow-lg shadow-brand-900/20"
              >
-               <Check size={16} /> Apply Size
+               <Check size={16} /> Apply Settings
              </button>
         </div>
 

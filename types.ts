@@ -56,6 +56,8 @@ export interface ComicPage {
   id: string;
   elements: ComicElement[];
   background: string;
+  backgroundImage?: string;
+  padding?: number;
   order: number;
   width?: number;
   height?: number;

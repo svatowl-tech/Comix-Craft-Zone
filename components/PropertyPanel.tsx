@@ -1,5 +1,5 @@
-import React from 'react';
-import { Trash2, Copy, Layers, AlignCenter, AlignLeft, AlignRight, Bold, Type, Crop, X, MessageSquare, Shuffle, Sticker, Plus } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Trash2, Copy, Layers, AlignCenter, AlignLeft, AlignRight, Bold, Type, Crop, X, MessageSquare, Shuffle, Sticker, Plus, Upload } from 'lucide-react';
 import { ComicElement } from '../types';
 
 interface PropertyPanelProps {
@@ -12,6 +12,8 @@ interface PropertyPanelProps {
   onClose: () => void;
   onAddStitchImage?: () => void;
   onReplaceStitchImage?: (id: string) => void;
+  uploadedImages?: string[];
+  onUploadImage?: (url: string) => void;
 }
 
 export const PropertyPanel: React.FC<PropertyPanelProps> = ({ 
@@ -23,8 +25,12 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
   onOpenCrop,
   onClose,
   onAddStitchImage,
-  onReplaceStitchImage
+  onReplaceStitchImage,
+  uploadedImages,
+  onUploadImage
 }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   if (!element) {
     return (
       <div className="w-full h-full bg-slate-800 p-6 flex flex-col items-center justify-center text-slate-500 relative">
@@ -44,6 +50,17 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
       });
     } else {
       onUpdate(element.id, { [key]: value });
+    }
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const url = URL.createObjectURL(file);
+      if (onUploadImage) {
+        onUploadImage(url);
+      }
+      handleChange('content', url);
     }
   };
 
@@ -116,6 +133,47 @@ export const PropertyPanel: React.FC<PropertyPanelProps> = ({
               >
                 <Crop size={14} /> Crop / Position
               </button>
+           </div>
+        )}
+
+        {element.type === 'frame' && !element.isStitch && (
+           <div className="bg-slate-700/50 p-3 rounded-lg border border-slate-700 mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-300">Frame Image</span>
+              </div>
+              
+              <div className="space-y-2">
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full bg-brand-600 hover:bg-brand-500 text-white text-xs py-2 rounded flex items-center justify-center gap-2"
+                >
+                  <Upload size={14} /> Upload New Image
+                </button>
+
+                {uploadedImages && uploadedImages.length > 0 && (
+                  <div className="mt-3">
+                    <label className="text-[10px] text-slate-400 uppercase tracking-wider mb-1 block">Or select existing:</label>
+                    <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                      {uploadedImages.map((url, i) => (
+                        <button 
+                          key={i}
+                          onClick={() => handleChange('content', url)}
+                          className={`w-12 h-12 shrink-0 rounded overflow-hidden border-2 transition-all ${element.content === url ? 'border-brand-500' : 'border-transparent hover:border-slate-500'}`}
+                        >
+                          <img src={url} alt="Asset" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
            </div>
         )}
 

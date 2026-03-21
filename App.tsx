@@ -174,7 +174,9 @@ export default function App() {
     const newPage: ComicPage = {
       id: `page-${Date.now()}`,
       order: project.pages.length,
-      background: '#ffffff',
+      background: activePage.background || '#ffffff',
+      backgroundImage: activePage.backgroundImage,
+      padding: activePage.padding,
       elements: [],
       width: activePage.width || PAGE_WIDTH,
       height: activePage.height || PAGE_HEIGHT
@@ -189,9 +191,9 @@ export default function App() {
       }));
   };
 
-  const handlePageResize = (w: number, h: number) => {
+  const handlePageResize = (w: number, h: number, bg: string, bgImg?: string, pad?: number) => {
     saveHistory(true);
-    updateActivePage({ width: w, height: h });
+    updateActivePage({ width: w, height: h, background: bg, backgroundImage: bgImg, padding: pad });
     setIsPageSettingsOpen(false);
   };
 
@@ -326,7 +328,9 @@ export default function App() {
       const newPage: ComicPage = {
           id: newPageId,
           order: project.pages.length,
-          background: '#ffffff',
+          background: activePage.background || '#ffffff',
+          backgroundImage: activePage.backgroundImage,
+          padding: activePage.padding,
           elements,
           width: PAGE_WIDTH,
           height: PAGE_HEIGHT
@@ -441,7 +445,9 @@ export default function App() {
               const newPage: ComicPage = {
                   id: newPageId,
                   order: project.pages.length,
-                  background: '#ffffff',
+                  background: activePage.background || '#ffffff',
+                  backgroundImage: activePage.backgroundImage,
+                  padding: activePage.padding,
                   elements,
                   width: width || PAGE_WIDTH,
                   height: height || PAGE_HEIGHT
@@ -757,13 +763,35 @@ export default function App() {
             <div className="flex-1 overflow-auto p-4 pb-24 md:p-8 md:pb-8 flex justify-center items-start custom-scrollbar touch-pan-x touch-pan-y">
                 <div 
                   ref={paperRef}
-                  className="bg-white shadow-2xl relative comic-paper transition-transform duration-75 origin-top"
-                  style={{ width: currentWidth, height: currentHeight, transform: `scale(${zoom})`, flexShrink: 0 }}
+                  className="shadow-2xl relative comic-paper transition-transform duration-75 origin-top"
+                  style={{ 
+                    width: currentWidth, 
+                    height: currentHeight, 
+                    transform: `scale(${zoom})`, 
+                    flexShrink: 0,
+                    backgroundColor: activePage.background || '#ffffff',
+                    backgroundImage: activePage.backgroundImage ? `url(${activePage.backgroundImage})` : 'none',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                  }}
                   onDrop={handleDrop}
                   onDragOver={(e) => e.preventDefault()}
                   onMouseDown={handleCanvasMouseDown}
                   onTouchStart={(e) => handleCanvasMouseDown(e as any)}
                 >
+                    {/* Padding Guide */}
+                    {activePage.padding ? (
+                      <div 
+                        className="absolute border-2 border-blue-400/30 border-dashed pointer-events-none z-40"
+                        style={{
+                          top: activePage.padding,
+                          left: activePage.padding,
+                          right: activePage.padding,
+                          bottom: activePage.padding
+                        }}
+                      />
+                    ) : null}
+
                     {activePage.elements.sort((a, b) => a.zIndex - b.zIndex).map(el => (
                         <CanvasElement key={el.id} element={el} onMouseDown={handleElementMouseDown} />
                     ))}
@@ -815,6 +843,8 @@ export default function App() {
                      onClose={() => setIsPropertiesOpen(false)}
                      onAddStitchImage={handleAddStitchImage}
                      onReplaceStitchImage={handleReplaceStitchImage}
+                     uploadedImages={uploadedImages}
+                     onUploadImage={(url) => setUploadedImages(p => [url, ...p])}
                   />
               </div>
           </div>
@@ -895,6 +925,9 @@ export default function App() {
           <PageSettingsModal 
              initialWidth={currentWidth}
              initialHeight={currentHeight}
+             initialBackground={activePage.background}
+             initialBackgroundImage={activePage.backgroundImage}
+             initialPadding={activePage.padding}
              onSave={handlePageResize}
              onClose={() => setIsPageSettingsOpen(false)}
           />
