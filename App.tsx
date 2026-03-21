@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { toPng } from 'html-to-image';
-import { ZoomIn, ZoomOut, X } from 'lucide-react';
+import { ZoomIn, ZoomOut, X, PlusCircle, Sliders, Layers, Wrench, PenTool, Scaling } from 'lucide-react';
 import { Library } from './components/Library';
 import { PropertyPanel } from './components/PropertyPanel';
 import { CanvasElement } from './components/CanvasElement';
@@ -40,6 +40,7 @@ export default function App() {
   
   // Modals
   const [isPageSettingsOpen, setIsPageSettingsOpen] = useState(false);
+  const [isPageNavigatorOpen, setIsPageNavigatorOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isStitchModalOpen, setIsStitchModalOpen] = useState(false);
   const [isDrawingEditorOpen, setIsDrawingEditorOpen] = useState(false);
@@ -56,6 +57,7 @@ export default function App() {
   const dragStartRef = useRef<{ x: number, y: number } | null>(null);
   const elementStartRef = useRef<{ x: number, y: number, w: number, h: number } | null>(null);
   const dragStartProjectState = useRef<ComicProject | null>(null);
+  const hasMoved = useRef<boolean>(false);
 
   // -- Derived Data --
   const activePage = project.pages.find(p => p.id === project.activePageId) || project.pages[0];
@@ -83,9 +85,18 @@ export default function App() {
   }, []);
 
   // -- History Logic --
-  const saveHistory = useCallback(() => {
-    setHistory(prev => [...prev, project]);
-    setFuture([]);
+  const lastHistorySaveTime = useRef<number>(0);
+
+  const saveHistory = useCallback((force = false) => {
+    const now = Date.now();
+    if (force || now - lastHistorySaveTime.current > 1000) {
+      setHistory(prev => {
+        if (prev.length > 0 && prev[prev.length - 1] === project) return prev;
+        return [...prev, project];
+      });
+      setFuture([]);
+    }
+    lastHistorySaveTime.current = now;
   }, [project]);
 
   const handleUndo = useCallback(() => {
@@ -94,6 +105,7 @@ export default function App() {
     setFuture(prev => [project, ...prev]);
     setHistory(history.slice(0, -1));
     setProject(previous);
+    lastHistorySaveTime.current = 0;
   }, [history, project]);
 
   const handleRedo = useCallback(() => {
@@ -102,7 +114,16 @@ export default function App() {
     setHistory(prev => [...prev, project]);
     setFuture(future.slice(1));
     setProject(next);
+    lastHistorySaveTime.current = 0;
   }, [future, project]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      localStorage.clear();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -121,7 +142,7 @@ export default function App() {
 
   // -- Project Actions --
   const handleSaveProject = async () => {
-    await saveProjectToFile(project);
+    await saveProjectToFile({ ...project, assets: uploadedImages });
   };
 
   const handleLoadProject = async (file: File) => {
@@ -133,6 +154,11 @@ export default function App() {
       }
       
       setProject(loadedProject);
+      if (loadedProject.assets) {
+        setUploadedImages(loadedProject.assets);
+      } else {
+        setUploadedImages([]);
+      }
       // Clear history as this is a new session state
       setHistory([]);
       setFuture([]);
@@ -144,7 +170,7 @@ export default function App() {
   };
 
   const addPage = () => {
-    saveHistory();
+    saveHistory(true);
     const newPage: ComicPage = {
       id: `page-${Date.now()}`,
       order: project.pages.length,
@@ -164,7 +190,7 @@ export default function App() {
   };
 
   const handlePageResize = (w: number, h: number) => {
-    saveHistory();
+    saveHistory(true);
     updateActivePage({ width: w, height: h });
     setIsPageSettingsOpen(false);
   };
@@ -185,7 +211,7 @@ export default function App() {
   }, [saveHistory, updateElement]);
 
   const deleteElement = (id: string) => {
-    saveHistory();
+    saveHistory(true);
     const el = activePage.elements.find(e => e.id === id);
     const isStitch = el?.isStitch;
 
@@ -242,7 +268,7 @@ export default function App() {
   };
   
   const duplicateElement = (id: string) => {
-      saveHistory();
+      saveHistory(true);
       const el = activePage.elements.find(e => e.id === id);
       if(!el) return;
       const newEl = { ...el, id: `el-${Date.now()}`, x: el.x + 20, y: el.y + 20, selected: true };
@@ -257,7 +283,7 @@ export default function App() {
   };
 
   const changeLayer = (id: string, dir: 'up' | 'down') => {
-      saveHistory();
+      saveHistory(true);
       const el = activePage.elements.find(e => e.id === id);
       if(!el) return;
       const newZ = dir === 'up' ? el.zIndex + 1 : Math.max(0, el.zIndex - 1);
@@ -266,7 +292,7 @@ export default function App() {
 
   const handleCropSave = (crop: CropData) => {
     if (cropTargetId) {
-      saveHistory();
+      saveHistory(true);
       const style = activePage.elements.find(e => e.id === cropTargetId)?.style;
       updateElement(cropTargetId, { style: { ...style, crop } });
       setCropTargetId(null);
@@ -275,7 +301,7 @@ export default function App() {
 
   // -- Layout Generation Calls --
   const handleGenerateLayout = (count: number) => {
-      saveHistory();
+      saveHistory(true);
       const { elements } = generateAlgorithmicLayout({ count, currentWidth, currentHeight });
       updateActivePage({ elements });
       setSelectedId(null);
@@ -283,7 +309,7 @@ export default function App() {
   };
 
   const applyTemplate = (layoutId: string) => {
-     saveHistory();
+     saveHistory(true);
      const { elements, width, height } = generateTemplateLayout({ layoutId, currentWidth, currentHeight });
      updateActivePage({ elements, width, height });
      setSelectedId(null);
@@ -291,7 +317,7 @@ export default function App() {
   };
 
   const handleCreateStitch = (images: { url: string, ratio: number }[]) => {
-      saveHistory();
+      saveHistory(true);
       
       // Create a new page for the stitch
       const newPageId = `page-${Date.now()}`;
@@ -335,7 +361,7 @@ export default function App() {
           const file = e.target.files?.[0];
           if (!file) return;
           
-          saveHistory();
+          saveHistory(true);
           const url = URL.createObjectURL(file);
           const img = new Image();
           img.onload = () => {
@@ -384,7 +410,7 @@ export default function App() {
   };
 
   const onStitchComplete = (newImages: { url: string, ratio: number }[], shouldNumber: boolean) => {
-      saveHistory();
+      saveHistory(true);
       
       if (stitchModalMode === 'new') {
           // Find first empty page
@@ -464,7 +490,7 @@ export default function App() {
   // -- Interactions (Drag & Drop) --
 
   const addItemToCanvas = async (item: DragItem, xPos?: number, yPos?: number) => {
-     saveHistory();
+     saveHistory(true);
      const centerX = xPos ?? (currentWidth / 2 - 50);
      const centerY = yPos ?? (Math.min(currentHeight/2, 500) - 50);
 
@@ -521,7 +547,7 @@ export default function App() {
           el.type === 'frame' && dropX >= el.x && dropX <= el.x + el.width && dropY >= el.y && dropY <= el.y + el.height
        );
        if (targetFrame) {
-         saveHistory();
+         saveHistory(true);
          updateElement(targetFrame.id, { content: item.content, style: { ...targetFrame.style, crop: undefined } });
          return;
        }
@@ -543,7 +569,6 @@ export default function App() {
 
   const handlePageResizeMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
       e.stopPropagation();
-      saveHistory();
       setIsDragging(true);
       setDragMode('page-resize');
       
@@ -553,6 +578,7 @@ export default function App() {
       dragStartRef.current = { x: clientX, y: clientY };
       elementStartRef.current = { x: 0, y: 0, w: currentWidth, h: currentHeight };
       dragStartProjectState.current = project;
+      hasMoved.current = false;
   };
 
   const handleElementMouseDown = useCallback((e: React.MouseEvent | React.TouchEvent, id: string, type: 'move' | 'resize') => {
@@ -564,6 +590,7 @@ export default function App() {
     setIsPageSelected(false);
     
     dragStartProjectState.current = project;
+    hasMoved.current = false;
     
     // Select logic
     setProject(prev => ({
@@ -584,7 +611,8 @@ export default function App() {
 
   // Global Mouse Handlers for Dragging
   const handleGlobalMouseMove = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!isDragging || !dragStartRef.current || !elementStartRef.current || !selectedId || !dragMode) return;
+    if (!isDragging || !dragStartRef.current || !elementStartRef.current || !dragMode) return;
+    if ((dragMode === 'move' || dragMode === 'resize') && !selectedId) return;
     
     if (e.cancelable) {
       e.preventDefault();
@@ -595,13 +623,18 @@ export default function App() {
     
     const dx = (clientX - dragStartRef.current.x) / zoom;
     const dy = (clientY - dragStartRef.current.y) / zoom;
+    
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        hasMoved.current = true;
+    }
+
     const start = elementStartRef.current;
     const snap = (val: number) => Math.round(val / 10) * 10;
 
     if (dragMode === 'move') {
-      updateElement(selectedId, { x: snap(start.x + dx), y: snap(start.y + dy) });
+      updateElement(selectedId!, { x: snap(start.x + dx), y: snap(start.y + dy) });
     } else if (dragMode === 'resize') {
-      updateElement(selectedId, { width: Math.max(20, snap(start.w + dx)), height: Math.max(20, snap(start.h + dy)) });
+      updateElement(selectedId!, { width: Math.max(20, snap(start.w + dx)), height: Math.max(20, snap(start.h + dy)) });
     } else if (dragMode === 'page-resize') {
       const newW = Math.max(200, snap(start.w + dx));
       const newH = Math.max(200, snap(start.h + dy));
@@ -613,15 +646,20 @@ export default function App() {
   }, [isDragging, selectedId, dragMode, zoom, updateElement]);
 
   const handleGlobalMouseUp = useCallback(() => {
-    if (isDragging && dragStartProjectState.current) {
-        setHistory(prev => [...prev, dragStartProjectState.current!]);
+    if (isDragging && dragStartProjectState.current && hasMoved.current) {
+        setHistory(prev => {
+            if (prev.length > 0 && prev[prev.length - 1] === dragStartProjectState.current) return prev;
+            return [...prev, dragStartProjectState.current!];
+        });
         setFuture([]);
+        lastHistorySaveTime.current = 0;
     }
     setIsDragging(false);
     setDragMode(null);
     dragStartRef.current = null;
     elementStartRef.current = null;
     dragStartProjectState.current = null;
+    hasMoved.current = false;
   }, [isDragging]);
 
   useEffect(() => {
@@ -685,24 +723,27 @@ export default function App() {
       />
 
       {/* Workspace */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Sidebar */}
-        <div className={`${isLibraryOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:relative inset-y-0 left-0 w-full sm:w-72 z-40 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none h-full`}>
-            <div className="h-full flex flex-col relative">
-                <button onClick={() => setIsLibraryOpen(false)} className="lg:hidden absolute top-2 right-2 z-50 p-2 bg-slate-900/80 rounded-full text-white"><X size={20}/></button>
-                <Library 
-                    onDragStart={() => {}} 
-                    onItemClick={(item) => addItemToCanvas(item)}
-                    onApplyTemplate={applyTemplate}
-                    onGenerateLayout={handleGenerateLayout}
-                    uploadedImages={uploadedImages}
-                    onUploadImage={(url) => setUploadedImages(p => [url, ...p])}
-                    onOpenStitch={handleOpenStitchHeader}
-                    onOpenDrawing={handleOpenDrawing}
-                    onClose={() => setIsLibraryOpen(false)}
-                />
-            </div>
-        </div>
+      <div className="flex-1 flex overflow-hidden relative pb-16 lg:pb-0">
+        {/* Left Sidebar (Library) */}
+        <>
+          {isLibraryOpen && <div className="lg:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40" onClick={() => setIsLibraryOpen(false)} />}
+          <div className={`${isLibraryOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:-translate-x-full'} lg:translate-y-0 fixed lg:relative bottom-0 lg:inset-y-0 left-0 w-full lg:w-72 h-[85vh] lg:h-full z-50 lg:z-40 transition-transform duration-300 ease-in-out shadow-[0_-8px_30px_rgba(0,0,0,0.5)] lg:shadow-none bg-slate-800 rounded-t-2xl lg:rounded-none flex flex-col pb-16 lg:pb-0`}>
+              <div className="h-full flex flex-col relative">
+                  <div className="w-12 h-1.5 bg-slate-600 rounded-full mx-auto mt-3 mb-1 lg:hidden shrink-0" />
+                  <Library 
+                      onDragStart={() => {}} 
+                      onItemClick={(item) => addItemToCanvas(item)}
+                      onApplyTemplate={applyTemplate}
+                      onGenerateLayout={handleGenerateLayout}
+                      uploadedImages={uploadedImages}
+                      onUploadImage={(url) => setUploadedImages(p => [url, ...p])}
+                      onOpenStitch={handleOpenStitchHeader}
+                      onOpenDrawing={handleOpenDrawing}
+                      onClose={() => setIsLibraryOpen(false)}
+                  />
+              </div>
+          </div>
+        </>
 
         {/* Center Canvas */}
         <main className="flex-1 bg-slate-950 relative overflow-hidden flex flex-col" onClick={() => { if(window.innerWidth < 1024) {} }}>
@@ -713,7 +754,7 @@ export default function App() {
                <button onClick={() => setZoom(z => Math.min(2.0, z + 0.1))} className="p-2 hover:bg-slate-700 rounded text-slate-300"><ZoomIn size={18} /></button>
             </div>
 
-            <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center items-start custom-scrollbar touch-pan-x touch-pan-y">
+            <div className="flex-1 overflow-auto p-4 pb-24 md:p-8 md:pb-8 flex justify-center items-start custom-scrollbar touch-pan-x touch-pan-y">
                 <div 
                   ref={paperRef}
                   className="bg-white shadow-2xl relative comic-paper transition-transform duration-75 origin-top"
@@ -748,28 +789,94 @@ export default function App() {
                 </div>
             </div>
 
-            <PageNavigator 
-                pages={project.pages}
-                activePageId={project.activePageId}
-                onPageSelect={(id) => setProject(p => ({...p, activePageId: id}))}
-                onAddPage={addPage}
-            />
+            <div className="hidden lg:block">
+              <PageNavigator 
+                  pages={project.pages}
+                  activePageId={project.activePageId}
+                  onPageSelect={(id) => setProject(p => ({...p, activePageId: id}))}
+                  onAddPage={addPage}
+              />
+            </div>
         </main>
 
-        {/* Right Sidebar */}
-        <div className={`${isPropertiesOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0 fixed lg:relative inset-y-0 right-0 w-full sm:w-72 z-40 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none h-full`}>
-            <PropertyPanel 
-               element={selectedElement}
-               onUpdate={updateElementWithHistory}
-               onDelete={deleteElement}
-               onDuplicate={duplicateElement}
-               onLayerChange={changeLayer}
-               onOpenCrop={(id) => setCropTargetId(id)}
-               onClose={() => setIsPropertiesOpen(false)}
-               onAddStitchImage={handleAddStitchImage}
-               onReplaceStitchImage={handleReplaceStitchImage}
-            />
-        </div>
+        {/* Right Sidebar (Properties) */}
+        <>
+          {isPropertiesOpen && <div className="lg:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40" onClick={() => setIsPropertiesOpen(false)} />}
+          <div className={`${isPropertiesOpen ? 'translate-y-0 lg:translate-x-0' : 'translate-y-full lg:translate-x-full'} lg:translate-y-0 fixed lg:relative bottom-0 lg:inset-y-0 right-0 w-full lg:w-72 h-[85vh] lg:h-full z-50 lg:z-40 transition-transform duration-300 ease-in-out shadow-[0_-8px_30px_rgba(0,0,0,0.5)] lg:shadow-none bg-slate-800 rounded-t-2xl lg:rounded-none flex flex-col pb-16 lg:pb-0`}>
+              <div className="h-full flex flex-col relative">
+                  <div className="w-12 h-1.5 bg-slate-600 rounded-full mx-auto mt-3 mb-1 lg:hidden shrink-0" />
+                  <PropertyPanel 
+                     element={selectedElement}
+                     onUpdate={updateElementWithHistory}
+                     onDelete={deleteElement}
+                     onDuplicate={duplicateElement}
+                     onLayerChange={changeLayer}
+                     onOpenCrop={(id) => setCropTargetId(id)}
+                     onClose={() => setIsPropertiesOpen(false)}
+                     onAddStitchImage={handleAddStitchImage}
+                     onReplaceStitchImage={handleReplaceStitchImage}
+                  />
+              </div>
+          </div>
+        </>
+
+        {/* Mobile Page Navigator Bottom Sheet */}
+        <>
+          {isPageNavigatorOpen && <div className="lg:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40" onClick={() => setIsPageNavigatorOpen(false)} />}
+          <div className={`${isPageNavigatorOpen ? 'translate-y-0' : 'translate-y-full'} lg:hidden fixed bottom-0 inset-x-0 w-full h-auto max-h-[50vh] z-50 transition-transform duration-300 ease-in-out shadow-[0_-8px_30px_rgba(0,0,0,0.5)] bg-slate-800 rounded-t-2xl flex flex-col pb-16`}>
+              <div className="w-12 h-1.5 bg-slate-600 rounded-full mx-auto mt-3 mb-3 shrink-0" />
+              <div className="px-4 pb-2 flex justify-between items-center">
+                  <h2 className="text-white font-bold">Pages</h2>
+                  <div className="flex items-center gap-2">
+                      <button onClick={() => { setIsPageSettingsOpen(true); setIsPageNavigatorOpen(false); }} className="p-2 hover:bg-slate-700 rounded text-slate-300 flex items-center gap-1 text-xs font-medium">
+                         <Scaling size={16} /> Size
+                      </button>
+                      <button onClick={() => setIsPageNavigatorOpen(false)} className="p-2 hover:bg-slate-700 rounded text-slate-300">
+                         <X size={20} />
+                      </button>
+                  </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 pt-0">
+                  <div className="grid grid-cols-4 gap-3">
+                      {project.pages.map((page, idx) => (
+                          <button
+                              key={page.id}
+                              onClick={() => { setProject(p => ({...p, activePageId: page.id})); setIsPageNavigatorOpen(false); }}
+                              className={`aspect-[3/4] border-2 rounded-lg flex items-center justify-center text-lg font-bold transition-colors ${page.id === project.activePageId ? 'border-brand-500 bg-slate-700 text-white' : 'border-slate-600 bg-slate-900 text-slate-500 hover:border-slate-500'}`}
+                          >
+                              {idx + 1}
+                          </button>
+                      ))}
+                      <button
+                          onClick={() => { addPage(); setIsPageNavigatorOpen(false); }}
+                          className="aspect-[3/4] border-2 border-dashed border-slate-600 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                      >
+                          <PlusCircle size={24} />
+                      </button>
+                  </div>
+              </div>
+          </div>
+        </>
+      </div>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 bg-slate-900 border-t border-slate-800 flex justify-around items-center p-2 z-30 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
+        <button onClick={() => { setIsLibraryOpen(true); setIsPropertiesOpen(false); }} className={`flex flex-col items-center p-2 ${isLibraryOpen ? 'text-brand-500' : 'text-slate-400 hover:text-slate-200'}`}>
+          <PlusCircle size={24} />
+          <span className="text-[10px] mt-1 font-medium">Add</span>
+        </button>
+        <button onClick={() => { setIsPropertiesOpen(true); setIsLibraryOpen(false); }} disabled={!selectedId} className={`flex flex-col items-center p-2 ${!selectedId ? 'text-slate-700' : isPropertiesOpen ? 'text-brand-500' : 'text-slate-400 hover:text-slate-200'}`}>
+          <Sliders size={24} />
+          <span className="text-[10px] mt-1 font-medium">Edit</span>
+        </button>
+        <button onClick={() => { setIsPageNavigatorOpen(true); setIsLibraryOpen(false); setIsPropertiesOpen(false); }} className={`flex flex-col items-center p-2 ${isPageNavigatorOpen ? 'text-brand-500' : 'text-slate-400 hover:text-slate-200'}`}>
+          <Layers size={24} />
+          <span className="text-[10px] mt-1 font-medium">Pages</span>
+        </button>
+        <button onClick={handleOpenDrawing} className="flex flex-col items-center p-2 text-slate-400 hover:text-slate-200">
+          <PenTool size={24} />
+          <span className="text-[10px] mt-1 font-medium">Draw</span>
+        </button>
       </div>
 
       {cropTargetElement && cropTargetElement.content && (
@@ -814,7 +921,7 @@ export default function App() {
          canvasWidth={currentWidth}
          canvasHeight={currentHeight}
          onSave={(imageData) => {
-            saveHistory();
+            saveHistory(true);
             const newElement: ComicElement = {
               id: `el-${Date.now()}`,
               type: 'image',

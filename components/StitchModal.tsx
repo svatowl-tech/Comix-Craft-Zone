@@ -118,8 +118,8 @@ export const StitchModal: React.FC<StitchModalProps> = ({ onClose, onComplete })
           )}
         </div>
 
-        <div className="p-5 border-t border-slate-800 bg-slate-800/30 flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer group">
+        <div className="p-5 border-t border-slate-800 bg-slate-800/30 flex flex-col sm:flex-row items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer group w-full sm:w-auto">
             <div className="relative flex items-center">
               <input 
                 type="checkbox" 
@@ -135,21 +135,23 @@ export const StitchModal: React.FC<StitchModalProps> = ({ onClose, onComplete })
             <span className="text-slate-300 text-sm font-medium group-hover:text-white transition-colors">Numbering (Пронумеровать)</span>
           </label>
 
-          <div className="flex-1"></div>
+          <div className="hidden sm:block flex-1"></div>
 
-          <button 
-            onClick={onClose}
-            className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={handleComplete}
-            disabled={files.length === 0 || isProcessing}
-            className="px-8 py-3 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-900/20"
-          >
-            Generate Stitch ({files.length} images)
-          </button>
+          <div className="flex gap-3 w-full sm:w-auto">
+            <button 
+              onClick={onClose}
+              className="flex-1 sm:flex-none px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors text-center"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={handleComplete}
+              disabled={files.length === 0 || isProcessing}
+              className="flex-1 sm:flex-none px-8 py-3 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-bold transition-all shadow-lg shadow-brand-900/20 text-center"
+            >
+              Generate ({files.length})
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -44,9 +44,6 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="h-14 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-4 z-30 shadow-md shrink-0">
       <div className="flex items-center gap-3">
-        <button className="lg:hidden p-1 rounded hover:bg-slate-800" onClick={onToggleLibrary}>
-          <Menu />
-        </button>
         <div className="w-8 h-8 bg-gradient-to-br from-brand-500 to-purple-600 rounded-lg flex items-center justify-center">
           <span className="font-banger text-white">CC</span>
         </div>
@@ -75,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={onOpenPageSettings}
-          className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white"
+          className="hidden lg:block p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white"
           title="Canvas Size"
         >
           <Scaling size={18} />
@@ -83,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={onOpenStitch}
-          className="p-2 hover:bg-slate-800 rounded-full text-brand-500 hover:text-brand-400"
+          className="hidden lg:block p-2 hover:bg-slate-800 rounded-full text-brand-500 hover:text-brand-400"
           title="Create Stitch (Склейка)"
         >
           <Grid3X3 size={18} />
@@ -91,7 +88,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         <button
           onClick={onOpenDrawing}
-          className="p-2 hover:bg-slate-800 rounded-full text-purple-500 hover:text-purple-400"
+          className="hidden lg:block p-2 hover:bg-slate-800 rounded-full text-purple-500 hover:text-purple-400"
           title="Drawing Studio"
         >
           <Pencil size={18} />
@@ -119,9 +116,6 @@ export const Header: React.FC<HeaderProps> = ({
           title="Save Project"
         >
           <Save size={18} />
-        </button>
-        <button className="lg:hidden p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white" onClick={onToggleProperties}>
-          <Settings2 size={18} />
         </button>
         <button className="sm:hidden p-2 hover:bg-slate-800 rounded-full text-brand-500 hover:text-brand-400" onClick={onOpenExport} title="Export">
           <Download size={18} />

@@ -26,13 +26,20 @@ export const saveProjectToFile = async (project: ComicProject) => {
   // We need to convert them to Base64 so they persist in the JSON file
   for (const page of projectToSave.pages) {
     for (const el of page.elements) {
-      if (el.content && typeof el.content === 'string') {
-        // Only convert blob URLs. 
-        // External URLs (http) are left as is (unless we want to embed them too, but CORS might block it).
+      if ((el.type === 'image' || el.type === 'frame') && el.content && typeof el.content === 'string') {
+        // Convert blob and http/https URLs to base64 to make the project self-contained.
         // Data URLs are already embedded.
-        if (el.content.startsWith('blob:')) {
+        if (el.content.startsWith('blob:') || el.content.startsWith('http')) {
           el.content = await blobToBase64(el.content);
         }
+      }
+    }
+  }
+
+  if (projectToSave.assets) {
+    for (let i = 0; i < projectToSave.assets.length; i++) {
+      if (projectToSave.assets[i].startsWith('blob:') || projectToSave.assets[i].startsWith('http')) {
+        projectToSave.assets[i] = await blobToBase64(projectToSave.assets[i]);
       }
     }
   }

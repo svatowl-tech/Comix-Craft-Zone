@@ -66,6 +66,7 @@ export interface ComicProject {
   title: string;
   pages: ComicPage[];
   activePageId: string;
+  assets?: string[];
 }
 
 export enum ToolMode {

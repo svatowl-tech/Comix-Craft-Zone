@@ -85,7 +85,7 @@ export const PageSettingsModal: React.FC<PageSettingsModalProps> = ({
         <div className="p-6 space-y-6">
             
             {/* Dimensions Input */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                     <label className="text-xs text-slate-400 mb-1 block">Width</label>
                     <input 
@@ -122,7 +122,7 @@ export const PageSettingsModal: React.FC<PageSettingsModalProps> = ({
             {/* Presets Grid */}
             <div>
                 <label className="text-xs text-slate-400 mb-2 block uppercase tracking-wider font-semibold">Presets</label>
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                     {PRESETS.map((p, i) => (
                         <button 
                             key={i}

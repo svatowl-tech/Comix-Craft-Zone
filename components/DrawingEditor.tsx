@@ -558,24 +558,24 @@ export const DrawingEditor: React.FC<DrawingEditorProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-700 bg-slate-800/50 flex justify-between items-center">
+        <div className="p-4 border-t border-slate-700 bg-slate-800/50 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="text-xs text-slate-500 flex items-center gap-4">
             <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Ready to draw</span>
             <span>{canvasWidth} x {canvasHeight} px</span>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 w-full sm:w-auto">
             <button 
               onClick={onClose}
-              className="px-6 py-2 rounded-xl text-slate-400 hover:bg-slate-700 transition-colors font-medium"
+              className="flex-1 sm:flex-none px-6 py-2 rounded-xl text-slate-400 hover:bg-slate-700 transition-colors font-medium text-center"
             >
               Cancel
             </button>
             <button 
               onClick={() => canvasRef.current && onSave(canvasRef.current.toDataURL())}
-              className="px-8 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition-all flex items-center gap-2"
+              className="flex-1 sm:flex-none px-8 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-bold shadow-lg shadow-brand-500/20 transition-all flex items-center justify-center gap-2"
             >
               <Check size={18} />
-              Add to Comic
+              Add
             </button>
           </div>
         </div>
