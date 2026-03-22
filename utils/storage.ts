@@ -2,8 +2,16 @@ import { ComicProject, ComicElement } from '../types';
 
 // Helper: Convert Blob URL to Base64 string
 const blobToBase64 = async (blobUrl: string): Promise<string> => {
+  if (!blobUrl.startsWith('blob:')) {
+    // If it's not a blob URL, just return it as is (e.g., already base64 or external URL)
+    return blobUrl;
+  }
+  
   try {
     const response = await fetch(blobUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     const blob = await response.blob();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -12,8 +20,10 @@ const blobToBase64 = async (blobUrl: string): Promise<string> => {
       reader.readAsDataURL(blob);
     });
   } catch (error) {
-    console.warn('Failed to convert blob to base64', blobUrl, error);
-    return blobUrl; // Return original if failed
+    console.warn('Failed to convert blob to base64, keeping original URL', blobUrl, error);
+    // Instead of returning blobUrl (which might be dead), we return it, 
+    // but the caller should be prepared that it might not load.
+    return blobUrl; 
   }
 };
 
